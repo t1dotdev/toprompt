@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { notFound } from '@tanstack/react-router'
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { project, prompt } from '../db/schema'
 import { auth } from './auth'
@@ -31,6 +31,7 @@ export const listProjectsFn = createServerFn({ method: 'GET' }).handler(async ()
     .select({
       id: project.id,
       name: project.name,
+      pinned: project.pinned,
       createdAt: project.createdAt,
       total: count(prompt.id),
       open: count(sql`case when ${prompt.done} then null else 1 end`),
@@ -39,7 +40,9 @@ export const listProjectsFn = createServerFn({ method: 'GET' }).handler(async ()
     .leftJoin(prompt, eq(prompt.projectId, project.id))
     .where(eq(project.userId, user.id))
     .groupBy(project.id)
-    .orderBy(asc(project.position), desc(project.createdAt))
+    // Pinned first, then whatever was worked on last. createdAt only breaks
+    // ties between two projects touched at the same instant.
+    .orderBy(desc(project.pinned), desc(project.updatedAt), desc(project.createdAt))
 })
 
 export type ProjectSummary = Awaited<ReturnType<typeof listProjectsFn>>[number]
@@ -48,38 +51,27 @@ export const createProjectFn = createServerFn({ method: 'POST' })
   .validator((data: { name: string }) => ({ name: cleanText(data.name, 200) }))
   .handler(async ({ data }) => {
     const user = await requireUser()
-    await db.insert(project).values({
-      name: data.name,
-      userId: user.id,
-      // Sits above everything else, which is where new projects already
-      // appeared before manual ordering existed. Two concurrent creates can
-      // tie here; createdAt breaks it, so the worst case is harmless.
-      position: sql<number>`(select coalesce(min(p.position), 0) - 1 from project p where p.user_id = ${user.id})`,
-    })
+    // The id comes back so the caller can send the user straight into the queue
+    // it just made.
+    const [created] = await db
+      .insert(project)
+      .values({ name: data.name, userId: user.id })
+      .returning({ id: project.id })
+    if (!created) throw new Error('Could not create project')
+    return created
   })
 
-export const reorderProjectsFn = createServerFn({ method: 'POST' })
-  .validator((data: { ids: Array<string> }) => {
-    if (!Array.isArray(data.ids) || data.ids.length > 1000)
-      throw new Error('Invalid input')
-    return { ids: data.ids.map((id) => cleanText(id, 100)) }
-  })
+export const setProjectPinnedFn = createServerFn({ method: 'POST' })
+  .validator((data: { id: string; pinned: boolean }) => ({
+    id: cleanText(data.id, 100),
+    pinned: Boolean(data.pinned),
+  }))
   .handler(async ({ data }) => {
     const user = await requireUser()
-    if (data.ids.length === 0) return
-    // Rewrites the whole list in one statement so it can never be read
-    // half-reordered. The userId guard means ids belonging to someone else
-    // simply match nothing.
-    // ponytail: fine to rewrite every row at this scale; switch to fractional
-    // indexing only if a single user ever holds thousands of projects.
-    const cases = sql.join(
-      data.ids.map((id, i) => sql`when ${id} then ${i}`),
-      sql` `,
-    )
     await db
       .update(project)
-      .set({ position: sql`case ${project.id} ${cases} else ${project.position} end` })
-      .where(and(eq(project.userId, user.id), inArray(project.id, data.ids)))
+      .set({ pinned: data.pinned })
+      .where(and(eq(project.id, data.id), eq(project.userId, user.id)))
   })
 
 export const deleteProjectFn = createServerFn({ method: 'POST' })
@@ -112,6 +104,14 @@ export const getProjectFn = createServerFn({ method: 'GET' })
 const ownedProjectIds = (userId: string) =>
   db.select({ id: project.id }).from(project).where(eq(project.userId, userId))
 
+// Every prompt write is activity on its project, and that is what the list
+// sorts on. The id always comes from a row the caller was already allowed to
+// write, so there is no second ownership check to make here.
+async function touchProject(id: string | undefined) {
+  if (!id) return
+  await db.update(project).set({ updatedAt: new Date() }).where(eq(project.id, id))
+}
+
 export const createPromptFn = createServerFn({ method: 'POST' })
   .validator((data: { projectId: string; text: string }) => ({
     projectId: cleanText(data.projectId, 100),
@@ -125,6 +125,7 @@ export const createPromptFn = createServerFn({ method: 'POST' })
       .where(and(eq(project.id, data.projectId), eq(project.userId, user.id)))
     if (!proj) throw new Error('Unauthorized')
     await db.insert(prompt).values({ projectId: proj.id, text: data.text })
+    await touchProject(proj.id)
   })
 
 export const togglePromptFn = createServerFn({ method: 'POST' })
@@ -134,19 +135,23 @@ export const togglePromptFn = createServerFn({ method: 'POST' })
   }))
   .handler(async ({ data }) => {
     const user = await requireUser()
-    await db
+    const [updated] = await db
       .update(prompt)
       .set({ done: data.done })
       .where(and(eq(prompt.id, data.id), inArray(prompt.projectId, ownedProjectIds(user.id))))
+      .returning({ projectId: prompt.projectId })
+    await touchProject(updated?.projectId)
   })
 
 export const deletePromptFn = createServerFn({ method: 'POST' })
   .validator((data: { id: string }) => ({ id: cleanText(data.id, 100) }))
   .handler(async ({ data }) => {
     const user = await requireUser()
-    await db
+    const [deleted] = await db
       .delete(prompt)
       .where(and(eq(prompt.id, data.id), inArray(prompt.projectId, ownedProjectIds(user.id))))
+      .returning({ projectId: prompt.projectId })
+    await touchProject(deleted?.projectId)
   })
 
 // Backs the undo toast. Reinserting the original id and createdAt puts the row
@@ -179,4 +184,5 @@ export const restorePromptFn = createServerFn({ method: 'POST' })
       .where(and(eq(project.id, data.projectId), eq(project.userId, user.id)))
     if (!proj) throw new Error('Unauthorized')
     await db.insert(prompt).values(data).onConflictDoNothing()
+    await touchProject(proj.id)
   })

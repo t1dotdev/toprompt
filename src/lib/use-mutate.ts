@@ -2,13 +2,15 @@ import { useTransition } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
-type MutateOptions = {
+type MutateOptions<T> = {
   /** Shown as a toast when the server function rejects. */
   error: string
   /** Applied immediately so the UI reacts on the same frame as the tap. */
   optimistic?: () => void
   /** Runs after a failure — use it to put a discarded draft back in the form. */
   onError?: () => void
+  /** Runs with whatever the server function resolved to, before the refetch. */
+  onSuccess?: (result: T) => void
 }
 
 /**
@@ -20,11 +22,11 @@ export function useMutate() {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
-  function mutate(run: () => Promise<unknown>, options: MutateOptions) {
+  function mutate<T>(run: () => Promise<T>, options: MutateOptions<T>) {
     startTransition(async () => {
       options.optimistic?.()
       try {
-        await run()
+        options.onSuccess?.(await run())
       } catch {
         toast.error(options.error)
         options.onError?.()

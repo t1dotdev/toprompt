@@ -177,42 +177,47 @@ function ProjectView() {
   }
 
   return (
-    <ProjectShell title={project.name}>
-      <form
-        className="mb-6 space-y-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          create()
-        }}
-      >
-        <Textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault()
-              create()
-            }
+    <ProjectShell
+      title={project.name}
+      composer={
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            create()
           }}
-          placeholder="Write a prompt…"
-          aria-label="New prompt"
-          maxLength={10000}
-          className="min-h-24"
-        />
-        <Button
-          type="submit"
-          className="h-11 w-full"
-          disabled={!trimmed || saving}
         >
-          {saving && <Spinner />}
-          Add prompt
-          <kbd className="ml-1 hidden font-sans text-xs opacity-60 sm:inline">
-            ⌘↵
-          </kbd>
-        </Button>
-      </form>
-
+          <Textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                create()
+              }
+            }}
+            placeholder="Write a prompt…"
+            aria-label="New prompt"
+            maxLength={10000}
+            // Grows with the draft (field-sizing-content) but stops before it
+            // swallows the queue it sits under.
+            className="max-h-48 overflow-y-auto"
+          />
+          <Button
+            type="submit"
+            className="h-11 w-full"
+            disabled={!trimmed || saving}
+          >
+            {saving && <Spinner />}
+            Add prompt
+            <kbd className="ml-1 hidden font-sans text-xs opacity-60 sm:inline">
+              ⌘↵
+            </kbd>
+          </Button>
+        </form>
+      }
+    >
       {prompts.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
@@ -221,7 +226,7 @@ function ProjectView() {
             </EmptyMedia>
             <EmptyTitle>The queue is empty</EmptyTitle>
             <EmptyDescription>
-              Add a prompt above. Later, tap it to copy it straight to your
+              Add a prompt below. Later, tap it to copy it straight to your
               clipboard, then check it off once it has run.
             </EmptyDescription>
           </EmptyHeader>
@@ -365,18 +370,23 @@ function PromptRow({
 /** Chrome shared by the queue and by its pending / error / not-found states. */
 function ProjectShell({
   title,
+  composer,
   children,
 }: {
   title?: string
+  composer?: React.ReactNode
   children: React.ReactNode
 }) {
+  // Chat-app frame: the shell fills the height the authed layout hands it, so
+  // the queue scrolls between a fixed header and a composer on the bottom edge.
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-0 flex-1 flex-col">
       <AppHeader>
+        {/* From `md` up the sidebar is the way back, and it never left. */}
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 size-11 shrink-0"
+          className="-ml-2 size-11 shrink-0 md:hidden"
           aria-label="Back to projects"
           nativeButton={false}
           render={<Link to="/" />}
@@ -388,22 +398,32 @@ function ProjectShell({
             {title}
           </h1>
         )}
-        <ThemeToggle className="-mr-2 ml-auto shrink-0" />
+        {/* The sidebar carries the toggle on desktop. */}
+        <ThemeToggle className="-mr-2 ml-auto shrink-0 md:hidden" />
       </AppHeader>
-      <main className="mx-auto max-w-md px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        {children}
-      </main>
+      {/* `div`, not `main`: SidebarInset is already the page's main. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-md px-4 py-4">{children}</div>
+      </div>
+      {composer && (
+        <div className="border-t bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto max-w-md px-4 pt-3">{composer}</div>
+        </div>
+      )}
     </div>
   )
 }
 
 function ProjectPending() {
   return (
-    <ProjectShell>
-      <div className="mb-6 space-y-2">
-        <Skeleton className="h-24" />
-        <Skeleton className="h-11 rounded-4xl" />
-      </div>
+    <ProjectShell
+      composer={
+        <div className="space-y-2">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-11 rounded-4xl" />
+        </div>
+      }
+    >
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-20" />

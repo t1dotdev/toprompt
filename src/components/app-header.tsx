@@ -5,7 +5,7 @@
  */
 export function AppHeader({ children }: { children: React.ReactNode }) {
   return (
-    <header className="sticky top-0 z-20 border-b bg-background pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-20 bg-background pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex min-h-14 max-w-md items-center gap-1 px-4">
         {children}
       </div>

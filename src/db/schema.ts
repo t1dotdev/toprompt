@@ -1,7 +1,6 @@
 import {
   boolean,
   index,
-  integer,
   pgTable,
   text,
   timestamp,
@@ -89,11 +88,17 @@ export const project = pgTable('project', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
-  // Manual sort order, ascending. Defaulting to 0 means rows that predate this
-  // column all tie and fall back to createdAt, so existing lists keep the order
-  // they already had until the owner drags something.
-  position: integer('position').notNull().default(0),
+  // Pinned projects are their own group above the rest; within the group they
+  // sort by activity like everything else.
+  pinned: boolean('pinned').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // What the list sorts on. $onUpdate covers writes to this table; a prompt
+  // write is activity too, so those touch it explicitly — Postgres has no way
+  // to see a child insert as an update to the parent.
+  updatedAt: timestamp('updated_at')
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 })
 
 export const prompt = pgTable('prompt', {

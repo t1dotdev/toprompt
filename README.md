@@ -67,10 +67,21 @@ The build output is a self-contained Node server:
 
 ```bash
 bun run build
-node dist/server/index.mjs
+node .output/server/index.mjs
 ```
 
-Push `dist/` to any Node host (a VPS, Fly.io, Render, …) and run the command above. For platform presets — Vercel, Netlify, Cloudflare, Lambda — see the [Nitro deploy docs](https://v3.nitro.build/deploy).
+Push `.output/` to any Node host (a VPS, Fly.io, Render, …) and run the command above. For platform presets — Vercel, Netlify, Cloudflare, Lambda — see the [Nitro deploy docs](https://v3.nitro.build/deploy).
+
+### Docker / Dokploy
+
+A multi-stage [`Dockerfile`](Dockerfile) is included — Bun builds, a slim Node image serves on port `3000`.
+
+```bash
+docker build -t toprompt .
+docker run -p 3000:3000 --env-file .env toprompt
+```
+
+On [Dokploy](https://dokploy.com): create an **Application** from this repo, set build type to **Dockerfile**, add the [environment variables](#environment), and point a domain at container port `3000`. Run `bun run db:push` against your database once to create the tables.
 
 ## Project layout
 

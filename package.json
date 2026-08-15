@@ -10,6 +10,7 @@
     "generate-routes": "tsr generate",
     "db:push": "drizzle-kit push",
     "build": "vite build",
+    "start": "bun .output/server/index.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

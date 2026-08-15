@@ -26,9 +26,29 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from '@dnd-kit/modifiers'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/utils'
 import { useMutate } from '@/lib/use-mutate'
-import { useReorder } from '@/lib/use-reorder'
 import {
   type ProjectSummary,
   createProjectFn,
@@ -96,18 +116,30 @@ function Projects() {
   const [name, setName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { list, listRef, draggingId, handleProps } = useReorder(
-    projects,
-    (ids) => {
-      // A placeholder row has no server id yet; it takes its position from the
-      // insert instead.
-      const real = ids.filter((id) => id !== PENDING_ID)
-      mutate(() => reorderProjectsFn({ data: { ids: real } }), {
-        error: "Couldn't save the new order.",
-        optimistic: () => addOptimistic({ type: 'reorder', ids: real }),
-      })
-    },
+  // Touch is the primary input here, so the pointer sensor needs a small
+  // movement threshold — without it a tap that drifts a pixel starts a drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   )
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    const from = projects.findIndex((p) => p.id === active.id)
+    const to = projects.findIndex((p) => p.id === over.id)
+    if (from < 0 || to < 0) return
+    // A placeholder row has no server id yet; it takes its position from the
+    // insert instead.
+    const ids = arrayMove(projects, from, to)
+      .map((p) => p.id)
+      .filter((id) => id !== PENDING_ID)
+    mutate(() => reorderProjectsFn({ data: { ids } }), {
+      error: "Couldn't save the new order.",
+      optimistic: () => addOptimistic({ type: 'reorder', ids }),
+    })
+  }
 
   const trimmed = name.trim()
 
@@ -170,22 +202,35 @@ function Projects() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <ul ref={listRef} className="space-y-2">
-          {list.map((p) => (
-            <ProjectRow
-              key={p.id}
-              project={p}
-              dragging={draggingId === p.id}
-              handleProps={handleProps(p.id)}
-              onDelete={() =>
-                mutate(() => deleteProjectFn({ data: { id: p.id } }), {
-                  error: `Couldn't delete “${p.name}”.`,
-                  optimistic: () => addOptimistic({ type: 'remove', id: p.id }),
-                })
-              }
-            />
-          ))}
-        </ul>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          // The list only moves on one axis, and a row dragged outside it has
+          // nowhere to land.
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext
+            items={projects.map((p) => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="space-y-2">
+              {projects.map((p) => (
+                <ProjectRow
+                  key={p.id}
+                  project={p}
+                  onDelete={() =>
+                    mutate(() => deleteProjectFn({ data: { id: p.id } }), {
+                      error: `Couldn't delete “${p.name}”.`,
+                      optimistic: () =>
+                        addOptimistic({ type: 'remove', id: p.id }),
+                    })
+                  }
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       )}
     </ProjectsShell>
   )
@@ -220,16 +265,20 @@ function ProjectsShell({
 
 function ProjectRow({
   project,
-  dragging,
-  handleProps,
   onDelete,
 }: {
   project: ProjectSummary
-  dragging: boolean
-  handleProps: React.HTMLAttributes<HTMLElement>
   onDelete: () => void
 }) {
   const isPending = project.id === PENDING_ID
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: project.id, disabled: isPending })
   const done = project.total - project.open
   const summary =
     project.total === 0
@@ -240,10 +289,7 @@ function ProjectRow({
 
   if (isPending) {
     return (
-      <li
-        data-reorder-row
-        className="flex min-h-14 items-center gap-3 rounded-xl border px-4 opacity-60"
-      >
+      <li className="flex min-h-14 items-center gap-3 rounded-xl border px-4 opacity-60">
         <span className="min-w-0 flex-1 truncate font-medium">
           {project.name}
         </span>
@@ -254,19 +300,21 @@ function ProjectRow({
 
   return (
     <li
-      data-reorder-row
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        'flex items-center rounded-xl border bg-background transition-colors hover:bg-muted/40 has-[a:active]:bg-muted/60 has-[a:focus-visible]:bg-muted/40 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1',
-        // Lifted off the list so it is obvious which row the finger owns.
-        dragging && 'relative z-10 shadow-lg',
+        'flex items-center rounded-xl border bg-background transition-colors hover:bg-muted/40 has-[a:active]:bg-muted/60 has-[a:focus-visible]:bg-muted/40',
+        // Lifted off the list so it is obvious which row is being carried.
+        isDragging && 'relative z-10 shadow-lg',
       )}
     >
       <button
         type="button"
-        {...handleProps}
-        aria-label={`Reorder ${project.name}. Use the arrow keys to move it.`}
+        {...attributes}
+        {...listeners}
+        aria-label={`Reorder ${project.name}`}
         // touch-none stops the browser claiming the gesture as a page scroll.
-        className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none transition-colors select-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-dragging:cursor-grabbing data-dragging:text-foreground"
+        className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none transition-colors select-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
       >
         <HugeiconsIcon icon={DragDropVerticalIcon} className="size-4" />
       </button>

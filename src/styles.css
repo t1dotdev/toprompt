@@ -18,6 +18,28 @@ body,
 
 body {
   margin: 0;
+  /* Landscape on a notched phone otherwise clips the column against the bezel. */
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  /* Suppressed because rows and prompt text are custom tap targets — the default
+     grey flash paints a block over them. Each one defines its own :active state. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* A spinner that doesn't spin isn't a spinner — rotation here is status, not
+     decoration, and it isn't a vestibular trigger. */
+  [data-slot='spinner'] {
+    animation-duration: 0.9s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 @theme inline {
@@ -64,6 +86,8 @@ body {
 }
 
 :root {
+  /* Keeps native form controls, scrollbars and the caret in step with the theme. */
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -99,6 +123,7 @@ body {
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

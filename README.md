@@ -63,18 +63,18 @@ bun run dev            # http://localhost:3100
 
 ## Deploy
 
-The build output is a self-contained Node server:
+The build output is a self-contained server:
 
 ```bash
 bun run build
-node .output/server/index.mjs
+bun .output/server/index.mjs
 ```
 
-Push `.output/` to any Node host (a VPS, Fly.io, Render, …) and run the command above. For platform presets — Vercel, Netlify, Cloudflare, Lambda — see the [Nitro deploy docs](https://v3.nitro.build/deploy).
+Building with Bun produces a Bun-targeted server, so run it with Bun. Push `.output/` to any host (a VPS, Fly.io, Render, …) and run the command above. For platform presets — Vercel, Netlify, Cloudflare, Lambda — see the [Nitro deploy docs](https://v3.nitro.build/deploy).
 
 ### Docker / Dokploy
 
-A multi-stage [`Dockerfile`](Dockerfile) is included — Bun builds, a slim Node image serves on port `3000`.
+A multi-stage [`Dockerfile`](Dockerfile) is included — Bun builds, a slim Bun image serves on port `3000`.
 
 ```bash
 docker build -t toprompt .

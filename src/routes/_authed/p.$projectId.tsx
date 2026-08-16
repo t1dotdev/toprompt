@@ -1,4 +1,4 @@
-import { useOptimistic, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { useMutate } from '@/lib/use-mutate'
+import { useMutate, useOptimisticList } from '@/lib/use-mutate'
 import {
   createPromptFn,
   deletePromptFn,
@@ -106,11 +106,11 @@ async function copyPrompt(text: string) {
 
 function ProjectView() {
   const { project, prompts: loaded } = Route.useLoaderData()
-  // Two transitions, not one: a row action must not make the compose form look
+  // Two of them, not one: a row action must not make the compose form look
   // like it is submitting the draft still sitting in the textarea.
   const [saving, save] = useMutate()
   const [, mutate] = useMutate()
-  const [prompts, addOptimistic] = useOptimistic(loaded, applyPromptAction)
+  const [prompts, addOptimistic] = useOptimisticList(loaded, applyPromptAction)
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 

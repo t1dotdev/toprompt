@@ -1,4 +1,4 @@
-import { useOptimistic, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { useMutate } from '@/lib/use-mutate'
+import { useMutate, useOptimisticList } from '@/lib/use-mutate'
 import {
   type ProjectSummary,
   createProjectFn,
@@ -154,7 +154,7 @@ export function ProjectList({
   flat?: boolean
 }) {
   const [, mutate] = useMutate()
-  const [projects, addOptimistic] = useOptimistic(loaded, applyProjectAction)
+  const [projects, addOptimistic] = useOptimisticList(loaded, applyProjectAction)
 
   if (projects.length === 0)
     return (
@@ -235,10 +235,14 @@ export function ProjectList({
 // left an action stuck on after a click — the row it navigated to keeps the
 // focus. Swapped for focus-visible so only keyboard focus reveals it; both
 // rules are md-only because below the breakpoint there is no hover to reveal
-// anything and the actions stay visible. No hover chip — the row already lights
-// up underneath, so the icon going full-strength is affordance enough.
+// anything and the actions stay visible. The hover rule is repeated here with !
+// because that focus-within rule would otherwise outrank it — the md variant
+// sorts later — and the row holding the focus is exactly the one you just
+// navigated to, so its actions stayed hidden while the pointer was on it. No
+// hover chip — the row already lights up underneath, so the icon going
+// full-strength is affordance enough.
 const rowActionClass =
-  'top-1/2! -translate-y-1/2 text-sidebar-foreground/60 hover:bg-transparent hover:text-sidebar-accent-foreground md:group-focus-within/menu-item:opacity-0 md:group-has-[:focus-visible]/menu-item:opacity-100'
+  'top-1/2! -translate-y-1/2 text-sidebar-foreground/60 hover:bg-transparent hover:text-sidebar-accent-foreground md:group-focus-within/menu-item:opacity-0 md:group-hover/menu-item:opacity-100! md:group-has-[:focus-visible]/menu-item:opacity-100'
 
 function ProjectRow({
   project,

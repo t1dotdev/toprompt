@@ -34,7 +34,10 @@ export const listProjectsFn = createServerFn({ method: 'GET' }).handler(async ()
       pinned: project.pinned,
       createdAt: project.createdAt,
       total: count(prompt.id),
-      open: count(sql`case when ${prompt.done} then null else 1 end`),
+      // `is false` rather than a plain else: the left join hands an empty
+      // project one all-null row, and null is not false, so it counts as no
+      // open work instead of one.
+      open: count(sql`case when ${prompt.done} is false then 1 end`),
     })
     .from(project)
     .leftJoin(prompt, eq(prompt.projectId, project.id))

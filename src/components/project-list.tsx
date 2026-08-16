@@ -3,9 +3,11 @@ import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
+  ArrowDown01Icon,
   Delete02Icon,
   Folder01Icon,
   MoreHorizontalIcon,
+  PencilEdit02Icon,
   PinIcon,
   PinOffIcon,
 } from '@hugeicons/core-free-icons'
@@ -42,12 +44,14 @@ import {
   type ProjectSummary,
   createProjectFn,
   deleteProjectFn,
+  renameProjectFn,
   setProjectPinnedFn,
 } from '@/lib/fns'
 
 type ProjectAction =
   | { type: 'remove'; id: string }
   | { type: 'pin'; id: string; pinned: boolean }
+  | { type: 'rename'; id: string; name: string }
 
 function applyProjectAction(
   projects: Array<ProjectSummary>,
@@ -61,6 +65,10 @@ function applyProjectAction(
       // takes for the row to jump groups on the same frame as the click.
       return projects.map((p) =>
         p.id === action.id ? { ...p, pinned: action.pinned } : p,
+      )
+    case 'rename':
+      return projects.map((p) =>
+        p.id === action.id ? { ...p, name: action.name } : p,
       )
   }
 }
@@ -195,57 +203,89 @@ export function ProjectList({
     if (rows.length === 0) return null
     return (
       <SidebarGroup className="p-0">
-        <SidebarGroupLabel>{label}</SidebarGroupLabel>
-        <SidebarGroupContent>
-          {/* gap-2, not the menu default gap-1: outlined rows carry their own
-              border, and 4px between two of them reads as a squeeze. Flat rows
-              have no border to crowd, so the default gap is right. */}
-          <SidebarMenu className={cn(!flat && 'gap-2')}>
-            {rows.map((p) => (
-              <ProjectRow
-                key={p.id}
-                project={p}
-                flat={flat}
-                onTogglePin={() =>
-                  mutate(
-                    () =>
-                      setProjectPinnedFn({
-                        data: { id: p.id, pinned: !p.pinned },
-                      }),
-                    {
-                      error: `Couldn't ${p.pinned ? 'unpin' : 'pin'} “${p.name}”.`,
-                      optimistic: () =>
-                        addOptimistic({
-                          type: 'pin',
-                          id: p.id,
-                          pinned: !p.pinned,
+        {/* <details>, not state: the browser already owns "click the heading to
+            fold the section", including the keyboard and the aria-expanded that
+            comes with it, and an uncontrolled `open` survives re-renders. */}
+        <details open className="group/collapsible">
+          <SidebarGroupLabel
+            render={<summary />}
+            // list-none plus the webkit rule drop the native triangle — the
+            // chevron below is the marker. `flex` on the label already fights
+            // summary's display, so the marker has to go explicitly.
+            className="group/label cursor-pointer list-none gap-1 select-none hover:text-sidebar-foreground [&::-webkit-details-marker]:hidden"
+          >
+            {label}
+            {/* Points right while folded, down while open. Folded it stays on
+                screen — with the rows gone it is the only thing left saying the
+                section is still there; open, the rows say that themselves, so
+                it waits to be pointed at. Both reveal rules stack the open
+                variant so they outrank the hide on specificity rather than on
+                wherever Tailwind happens to sort hover against open. */}
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              className="-rotate-90 transition-[opacity,rotate] group-open/collapsible:rotate-0 group-open/collapsible:opacity-0 group-open/collapsible:group-hover/label:opacity-100 group-open/collapsible:group-focus-visible/label:opacity-100"
+            />
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            {/* gap-2, not the menu default gap-1: outlined rows carry their own
+                border, and 4px between two of them reads as a squeeze. Flat rows
+                have no border to crowd, so the default gap is right. */}
+            <SidebarMenu className={cn(!flat && 'gap-2')}>
+              {rows.map((p) => (
+                <ProjectRow
+                  key={p.id}
+                  project={p}
+                  flat={flat}
+                  onTogglePin={() =>
+                    mutate(
+                      () =>
+                        setProjectPinnedFn({
+                          data: { id: p.id, pinned: !p.pinned },
                         }),
-                    },
-                  )
-                }
-                onDelete={() =>
-                  mutate(() => deleteProjectFn({ data: { id: p.id } }), {
-                    error: `Couldn't delete “${p.name}”.`,
-                    optimistic: () => addOptimistic({ type: 'remove', id: p.id }),
-                    // Leave before the refetch, or the queue still on screen is
-                    // the one just deleted and its loader answers not found.
-                    // Only the open project moves the user — deleting some other
-                    // row from the sidebar should leave them where they are.
-                    onSuccess: () => {
-                      if (
-                        matchRoute({
-                          to: '/p/$projectId',
-                          params: { projectId: p.id },
-                        })
-                      )
-                        navigate({ to: '/' })
-                    },
-                  })
-                }
-              />
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
+                      {
+                        error: `Couldn't ${p.pinned ? 'unpin' : 'pin'} “${p.name}”.`,
+                        optimistic: () =>
+                          addOptimistic({
+                            type: 'pin',
+                            id: p.id,
+                            pinned: !p.pinned,
+                          }),
+                      },
+                    )
+                  }
+                  onRename={(name) =>
+                    mutate(() => renameProjectFn({ data: { id: p.id, name } }), {
+                      error: `Couldn't rename “${p.name}”.`,
+                      optimistic: () =>
+                        addOptimistic({ type: 'rename', id: p.id, name }),
+                    })
+                  }
+                  onDelete={() =>
+                    mutate(() => deleteProjectFn({ data: { id: p.id } }), {
+                      error: `Couldn't delete “${p.name}”.`,
+                      optimistic: () =>
+                        addOptimistic({ type: 'remove', id: p.id }),
+                      // Leave before the refetch, or the queue still on screen
+                      // is the one just deleted and its loader answers not
+                      // found. Only the open project moves the user — deleting
+                      // some other row from the sidebar should leave them where
+                      // they are.
+                      onSuccess: () => {
+                        if (
+                          matchRoute({
+                            to: '/p/$projectId',
+                            params: { projectId: p.id },
+                          })
+                        )
+                          navigate({ to: '/' })
+                      },
+                    })
+                  }
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </details>
       </SidebarGroup>
     )
   }
@@ -319,17 +359,24 @@ const rowActionClass =
 function ProjectRow({
   project,
   onDelete,
+  onRename,
   onTogglePin,
   flat,
 }: {
   project: ProjectSummary
   onDelete: () => void
+  onRename: (name: string) => void
   onTogglePin: () => void
   flat?: boolean
 }) {
   // The menu can't own the dialog: Base UI unmounts the menu popup on close,
   // which would take a dialog rendered inside it down with it.
   const [confirming, setConfirming] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  // Uncontrolled: the field only has to survive until it commits, and reading
+  // the value on the way out means Escape can drop the edit by unmounting —
+  // no blur fires for a removed node, so there is no stale draft to undo.
+  const renameRef = useRef<HTMLInputElement>(null)
   const done = project.total - project.open
   const summary =
     project.total === 0
@@ -337,6 +384,45 @@ function ProjectRow({
       : project.open === 0
         ? `All ${project.total} done`
         : `${project.open} waiting${done ? ` · ${done} done` : ''}`
+
+  function commitRename() {
+    const next = renameRef.current?.value.trim()
+    setRenaming(false)
+    // An emptied field reads as "never mind", not as a request for a nameless
+    // project — same for typing the name it already had.
+    if (next && next !== project.name) onRename(next)
+  }
+
+  if (renaming)
+    return (
+      <SidebarMenuItem>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            commitRename()
+          }}
+        >
+          <Input
+            ref={renameRef}
+            defaultValue={project.name}
+            aria-label={`Rename ${project.name}`}
+            maxLength={200}
+            autoComplete="off"
+            enterKeyHint="done"
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={commitRename}
+            // Escape unmounts the field, which is the whole rollback: nothing
+            // was written and the row repaints from the project it still has.
+            onKeyDown={(e) => e.key === 'Escape' && setRenaming(false)}
+            // Sits in the row's own footprint so the name does not jump when
+            // the field takes over: same height, radius and text inset as the
+            // button it replaces.
+            className={cn('rounded-lg px-3 text-sm', flat ? 'h-9' : 'h-14')}
+          />
+        </form>
+      </SidebarMenuItem>
+    )
 
   return (
     <SidebarMenuItem>
@@ -410,7 +496,15 @@ function ProjectRow({
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} />
         </SidebarMenuAction>
-        <DropdownMenuContent align="start">
+        {/* The menu returns focus on close, and by then the field it opened is
+            already mounted — so the caret lands in the row itself instead of
+            back on the ⋯ the user just left. A null ref (any other item, or
+            Escape) falls back to the trigger, which is the default. */}
+        <DropdownMenuContent align="start" finalFocus={renameRef}>
+          <DropdownMenuItem onClick={() => setRenaming(true)}>
+            <HugeiconsIcon icon={PencilEdit02Icon} />
+            Rename
+          </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             onClick={() => setConfirming(true)}

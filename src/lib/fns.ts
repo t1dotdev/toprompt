@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { notFound } from '@tanstack/react-router'
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { project, prompt } from '../db/schema'
 import { auth } from './auth'
@@ -77,6 +77,21 @@ export const setProjectPinnedFn = createServerFn({ method: 'POST' })
       .where(and(eq(project.id, data.id), eq(project.userId, user.id)))
   })
 
+// updatedAt is deliberately left alone: the list sorts on it to mean "last
+// worked in", and fixing a typo in a name is not work on the queue.
+export const renameProjectFn = createServerFn({ method: 'POST' })
+  .validator((data: { id: string; name: string }) => ({
+    id: cleanText(data.id, 100),
+    name: cleanText(data.name, 200),
+  }))
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    await db
+      .update(project)
+      .set({ name: data.name })
+      .where(and(eq(project.id, data.id), eq(project.userId, user.id)))
+  })
+
 export const deleteProjectFn = createServerFn({ method: 'POST' })
   .validator((data: { id: string }) => ({ id: cleanText(data.id, 100) }))
   .handler(async ({ data }) => {
@@ -99,7 +114,9 @@ export const getProjectFn = createServerFn({ method: 'GET' })
       .select()
       .from(prompt)
       .where(eq(prompt.projectId, proj.id))
-      .orderBy(desc(prompt.createdAt), desc(prompt.id))
+      // Oldest first: the queue reads like a transcript, newest at the bottom
+      // next to the field that will add the one after it.
+      .orderBy(asc(prompt.createdAt), asc(prompt.id))
     return { project: proj, prompts }
   })
 

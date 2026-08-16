@@ -6,7 +6,7 @@
  * No trigger of its own: the sidebar collapses to an icon rail rather than
  * off-canvas, so the way back is always on screen where it went.
  */
-export function AppHeader({ children }: { children: React.ReactNode }) {
+export function AppHeader({ children }: { children?: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-20 border-b bg-background pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex min-h-14 max-w-md items-center gap-1 px-4 md:max-w-none md:px-6">

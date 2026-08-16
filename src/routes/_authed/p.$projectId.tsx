@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
@@ -8,14 +8,24 @@ import {
   ArrowLeft01Icon,
   Copy01Icon,
   Delete02Icon,
+  MoreHorizontalIcon,
   Note01Icon,
+  PencilEdit02Icon,
   RefreshIcon,
   Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import { AppHeader } from '@/components/app-header'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { RenameField } from '@/components/rename-field'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Empty,
   EmptyDescription,
@@ -30,8 +40,10 @@ import { cn } from '@/lib/utils'
 import { useMutate, useOptimisticList } from '@/lib/use-mutate'
 import {
   createPromptFn,
+  deleteProjectFn,
   deletePromptFn,
   getProjectFn,
+  renameProjectFn,
   restorePromptFn,
   togglePromptFn,
 } from '@/lib/fns'
@@ -153,6 +165,7 @@ async function copyPrompt(text: string) {
 
 function ProjectView() {
   const { project, prompts: loaded } = Route.useLoaderData()
+  const navigate = useNavigate()
   // Two of them, not one: a row action must not make the compose form look
   // like it is submitting the draft still sitting in the textarea.
   const [saving, save] = useMutate()
@@ -160,6 +173,10 @@ function ProjectView() {
   const [prompts, addOptimistic] = useOptimisticList(loaded, applyPromptAction)
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Renaming swaps the title out from under the ⋯, so the flag lives up here
+  // with the title rather than inside the menu that starts it.
+  const [renaming, setRenaming] = useState(false)
+  const renameRef = useRef<HTMLInputElement>(null)
   // One row at a time can be the last one copied, so the flag and its timer
   // live here rather than in every row — the previous row drops back the moment
   // the next one is taken.
@@ -239,23 +256,36 @@ function ProjectView() {
   }
 
   /**
-   * Copying is what running a prompt looks like from in here — the next thing
-   * the user does is paste it — so the tick follows the clipboard instead of
-   * waiting for a second trip to the checkbox. Unchecking is still there when
-   * the copy was only a look. A failed copy marks nothing.
+   * Tapping the prompt itself. On a fresh one that means copy-and-tick; on one
+   * already ticked it only unticks — nothing is put on the clipboard, because
+   * the tap that undoes a mistake should not also overwrite what you copied
+   * since. The Copy button is the way to re-copy a done prompt.
    */
-  async function copy(p: Prompt) {
+  function select(p: Prompt) {
+    if (p.done) {
+      toggle(p, false)
+      return
+    }
+    copy(p, true)
+  }
+
+  /**
+   * The clipboard half on its own. Only the prompt tap ticks the box with it —
+   * the Copy button is for grabbing the text again without touching where the
+   * queue has got to. A failed copy marks nothing.
+   */
+  async function copy(p: Prompt, mark = false) {
     if (p.id === PENDING_ID || !(await copyPrompt(p.text))) return
     // Says both halves of what just happened — the checkbox ticking on its own
     // is the surprising one. Sonner's own live region announces it, so the row
     // does not carry a second one.
-    toast.success(p.done ? 'Copied to clipboard' : 'Copied — marked done')
+    toast.success(mark ? 'Copied — marked done' : 'Copied to clipboard')
     setCopiedId(p.id)
     // Cleared first so copying a second prompt doesn't inherit the remainder of
     // the first one's window and blink off early.
     clearTimeout(copiedTimer.current)
     copiedTimer.current = setTimeout(() => setCopiedId(null), 1600)
-    if (!p.done) toggle(p, true)
+    if (mark) toggle(p, true)
   }
 
   function remove(p: Prompt) {
@@ -292,6 +322,7 @@ function ProjectView() {
         key={p.id}
         prompt={p}
         copied={copiedId === p.id}
+        onSelect={() => select(p)}
         onCopy={() => copy(p)}
         onToggle={(checked) => toggle(p, checked)}
         onDelete={() => remove(p)}
@@ -301,7 +332,44 @@ function ProjectView() {
 
   return (
     <ProjectShell
-      title={project.name}
+      title={
+        renaming ? (
+          <RenameField
+            ref={renameRef}
+            name={project.name}
+            onRename={(name) =>
+              mutate(
+                () => renameProjectFn({ data: { id: project.id, name } }),
+                { error: `Couldn't rename “${project.name}”.` },
+              )
+            }
+            onClose={() => setRenaming(false)}
+            // The heading's own type, in the heading's own lane — only the
+            // control changes, not the name's size or weight.
+            className="h-11 rounded-2xl px-3 text-xl font-bold tracking-tight md:text-xl"
+          />
+        ) : (
+          <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">
+            {project.name}
+          </h1>
+        )
+      }
+      actions={
+        <ProjectMenu
+          name={project.name}
+          total={prompts.length}
+          finalFocus={renameRef}
+          onRename={() => setRenaming(true)}
+          onDelete={() =>
+            mutate(() => deleteProjectFn({ data: { id: project.id } }), {
+              error: `Couldn't delete “${project.name}”.`,
+              // Leave before the refetch: the queue on screen is the one just
+              // deleted, and its loader answers not found.
+              onSuccess: () => navigate({ to: '/' }),
+            })
+          }
+        />
+      }
       scrollRef={scrollRef}
       composer={
         <form
@@ -385,12 +453,15 @@ function ProjectView() {
 function PromptRow({
   prompt,
   copied,
+  onSelect,
   onCopy,
   onToggle,
   onDelete,
 }: {
   prompt: Prompt
   copied: boolean
+  /** Tapping the prompt: copy-and-tick, or untick a done one without copying. */
+  onSelect: () => void
   onCopy: () => void
   onToggle: (checked: boolean) => void
   onDelete: () => void
@@ -440,12 +511,15 @@ function PromptRow({
         </div>
 
         {/* The whole text block copies — that is the app's core action, so it
-            gets the largest target. The trailing icon is what signals it. */}
+            gets the largest target. The trailing icon is what signals it. Once
+            it is done the same target reverses it instead, which is why it
+            carries a state, not a verb. */}
         {/* Deliberately unlabelled: the prompt text is the accessible name, so a
             screen reader reads the content instead of a generic action label. */}
         <button
           type="button"
-          onClick={onCopy}
+          aria-pressed={prompt.done}
+          onClick={onSelect}
           disabled={isPending}
           className="min-w-0 flex-1 cursor-pointer rounded-lg py-3 text-left outline-none transition-opacity focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70 disabled:cursor-default"
         >
@@ -537,14 +611,90 @@ function PromptRow({
   )
 }
 
+/**
+ * The queue's own ⋯ — the same actions the sidebar row carries, for the project
+ * you are already inside. Below `md` the sidebar is a sheet with nothing on
+ * screen to open it; above it, the queue you are reading should not cost a trip
+ * back to the list to be renamed.
+ */
+function ProjectMenu({
+  name,
+  total,
+  finalFocus,
+  onRename,
+  onDelete,
+}: {
+  name: string
+  total: number
+  /** The rename field, mounted by the time the menu closes — so the caret lands
+   *  in the title itself instead of back on the ⋯ the user just left. */
+  finalFocus: React.RefObject<HTMLInputElement | null>
+  onRename: () => void
+  onDelete: () => void
+}) {
+  // The menu can't own the dialog: Base UI unmounts the menu popup on close,
+  // which would take a dialog rendered inside it down with it.
+  const [confirming, setConfirming] = useState(false)
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Actions for ${name}`}
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-mr-2 size-11 shrink-0"
+            />
+          }
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} />
+        </DropdownMenuTrigger>
+        {/* Hangs off the right edge it sits on, rather than off the screen. */}
+        <DropdownMenuContent align="end" finalFocus={finalFocus}>
+          <DropdownMenuItem onClick={onRename}>
+            <HugeiconsIcon icon={PencilEdit02Icon} />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setConfirming(true)}
+          >
+            <HugeiconsIcon icon={Delete02Icon} />
+            Delete project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Delete “${name}”?`}
+        description={
+          total === 0
+            ? 'This project is empty. Deleting it cannot be undone.'
+            : `Its ${total} ${total === 1 ? 'prompt is' : 'prompts are'} deleted with it. This cannot be undone.`
+        }
+        confirmLabel="Delete project"
+        onConfirm={onDelete}
+      />
+    </>
+  )
+}
+
 /** Chrome shared by the queue and by its pending / error / not-found states. */
 function ProjectShell({
   title,
+  actions,
   composer,
   scrollRef,
   children,
 }: {
-  title?: string
+  /** The heading itself, not just its text: renaming swaps it for a field. */
+  title?: React.ReactNode
+  /** Trails the topbar. Only the loaded queue has a project to act on. */
+  actions?: React.ReactNode
   composer?: React.ReactNode
   /** The transcript's viewport, so the queue can open on its newest entry. */
   scrollRef?: React.Ref<HTMLDivElement>
@@ -566,12 +716,15 @@ function ProjectShell({
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} />
         </Button>
-        {title && (
-          <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">
-            {title}
-          </h1>
-        )}
-        <ThemeToggle className="-mr-2 ml-auto shrink-0" />
+        {title}
+        {/* Phone only. From `md` the sidebar is on screen and carries the
+            switch next to its own trigger; below it the sidebar is a sheet
+            with nothing to open it, so the topbar keeps one. Whichever control
+            ends up last owns the edge inset. */}
+        <ThemeToggle
+          className={cn('ml-auto shrink-0 md:hidden', !actions && '-mr-2')}
+        />
+        {actions}
       </AppHeader>
       {/* `div`, not `main`: SidebarInset is already the page's main. One cap at
           every width — the queue and the composer below it share an edge, so

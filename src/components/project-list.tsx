@@ -12,6 +12,7 @@ import {
   PinOffIcon,
 } from '@hugeicons/core-free-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { RenameField } from '@/components/rename-field'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,6 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Empty,
   EmptyDescription,
@@ -166,6 +172,7 @@ export function ProjectList({
   const navigate = useNavigate()
   const matchRoute = useMatchRoute()
   const [projects, addOptimistic] = useOptimisticList(loaded, applyProjectAction)
+  const [confirming, setConfirming] = useState<ProjectSummary | null>(null)
   const { state, isMobile } = useSidebar()
   // Only the sidebar copy can be collapsed — the home pane renders below the
   // breakpoint, where the sidebar is a full-width sheet.
@@ -174,14 +181,68 @@ export function ProjectList({
   const pinned = projects.filter((p) => p.pinned)
   const rest = projects.filter((p) => !p.pinned)
 
+  /**
+   * The same three writes behind a row wherever it is drawn — the expanded
+   * list and the rail's menu each hand them to their own row.
+   */
+  function handlers(p: ProjectSummary) {
+    return {
+      onTogglePin: () =>
+        mutate(
+          () => setProjectPinnedFn({ data: { id: p.id, pinned: !p.pinned } }),
+          {
+            error: `Couldn't ${p.pinned ? 'unpin' : 'pin'} “${p.name}”.`,
+            optimistic: () =>
+              addOptimistic({ type: 'pin', id: p.id, pinned: !p.pinned }),
+          },
+        ),
+      onRename: (name: string) =>
+        mutate(() => renameProjectFn({ data: { id: p.id, name } }), {
+          error: `Couldn't rename “${p.name}”.`,
+          optimistic: () => addOptimistic({ type: 'rename', id: p.id, name }),
+        }),
+      onDelete: () =>
+        mutate(() => deleteProjectFn({ data: { id: p.id } }), {
+          error: `Couldn't delete “${p.name}”.`,
+          optimistic: () => addOptimistic({ type: 'remove', id: p.id }),
+          // Leave before the refetch, or the queue still on screen is the one
+          // just deleted and its loader answers not found. Only the open
+          // project moves the user — deleting some other row from the sidebar
+          // should leave them where they are.
+          onSuccess: () => {
+            if (matchRoute({ to: '/p/$projectId', params: { projectId: p.id } }))
+              navigate({ to: '/' })
+          },
+        }),
+    }
+  }
+
   if (collapsed)
     return (
-      // gap-2, not the menu default gap-1: the rail keeps one 8px step between
-      // every icon, including across the header seam above it.
-      <SidebarMenu className="gap-2">
-        {railGroup('Pinned', PinIcon, pinned)}
-        {railGroup('Projects', Folder01Icon, rest)}
-      </SidebarMenu>
+      <>
+        {/* gap-2, not the menu default gap-1: the rail keeps one 8px step
+            between every icon, including across the header seam above it. */}
+        <SidebarMenu className="gap-2">
+          {railGroup('Pinned', PinIcon, pinned)}
+          {railGroup('Projects', Folder01Icon, rest)}
+        </SidebarMenu>
+        {/* Outside both menus on purpose. Picking Delete closes the popup the
+            row was drawn in, and a dialog mounted in there would go down with
+            it — so the rail's confirm lives out here and only remembers which
+            project it is for. */}
+        <ConfirmDialog
+          open={!!confirming}
+          onOpenChange={(open) => !open && setConfirming(null)}
+          title={`Delete “${confirming?.name}”?`}
+          description={
+            confirming?.total === 0
+              ? 'This project is empty. Deleting it cannot be undone.'
+              : `Its ${confirming?.total} ${confirming?.total === 1 ? 'prompt is' : 'prompts are'} deleted with it. This cannot be undone.`
+          }
+          confirmLabel="Delete project"
+          onConfirm={() => confirming && handlers(confirming).onDelete()}
+        />
+      </>
     )
 
   if (projects.length === 0)
@@ -236,51 +297,7 @@ export function ProjectList({
                   key={p.id}
                   project={p}
                   flat={flat}
-                  onTogglePin={() =>
-                    mutate(
-                      () =>
-                        setProjectPinnedFn({
-                          data: { id: p.id, pinned: !p.pinned },
-                        }),
-                      {
-                        error: `Couldn't ${p.pinned ? 'unpin' : 'pin'} “${p.name}”.`,
-                        optimistic: () =>
-                          addOptimistic({
-                            type: 'pin',
-                            id: p.id,
-                            pinned: !p.pinned,
-                          }),
-                      },
-                    )
-                  }
-                  onRename={(name) =>
-                    mutate(() => renameProjectFn({ data: { id: p.id, name } }), {
-                      error: `Couldn't rename “${p.name}”.`,
-                      optimistic: () =>
-                        addOptimistic({ type: 'rename', id: p.id, name }),
-                    })
-                  }
-                  onDelete={() =>
-                    mutate(() => deleteProjectFn({ data: { id: p.id } }), {
-                      error: `Couldn't delete “${p.name}”.`,
-                      optimistic: () =>
-                        addOptimistic({ type: 'remove', id: p.id }),
-                      // Leave before the refetch, or the queue still on screen
-                      // is the one just deleted and its loader answers not
-                      // found. Only the open project moves the user — deleting
-                      // some other row from the sidebar should leave them where
-                      // they are.
-                      onSuccess: () => {
-                        if (
-                          matchRoute({
-                            to: '/p/$projectId',
-                            params: { projectId: p.id },
-                          })
-                        )
-                          navigate({ to: '/' })
-                      },
-                    })
-                  }
+                  {...handlers(p)}
                 />
               ))}
             </SidebarMenu>
@@ -292,8 +309,8 @@ export function ProjectList({
 
   /**
    * Collapsed rail: a group is one icon, and its rows live in the menu hung off
-   * it. Switching queues is all the rail owes you — pinning and deleting wait
-   * for the sidebar to come back, where the rows are readable.
+   * it. The rows carry the same actions the expanded list gives them — the rail
+   * is the sidebar at this width, not a reduced copy of it.
    */
   function railGroup(
     label: string,
@@ -303,8 +320,12 @@ export function ProjectList({
     if (rows.length === 0) return null
     return (
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
+        {/* A popover, not a menu. A menu activates and closes on the first
+            thing you touch and runs typeahead over every keystroke — these rows
+            have to survive a nested action menu opening over them and a rename
+            field being typed into. */}
+        <Popover>
+          <PopoverTrigger
             aria-label={label}
             render={
               <SidebarMenuButton className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground" />
@@ -312,25 +333,20 @@ export function ProjectList({
           >
             <HugeiconsIcon icon={icon} />
             <span>{label}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start">
+          </PopoverTrigger>
+          {/* w-64 because the anchor is a 32px rail icon, and the rows have two
+              actions to house. */}
+          <PopoverContent side="right" align="start" className="w-64">
             {rows.map((p) => (
-              <DropdownMenuItem
+              <RailRow
                 key={p.id}
-                render={
-                  <Link to="/p/$projectId" params={{ projectId: p.id }} />
-                }
-              >
-                <span className="truncate">{p.name}</span>
-                {p.open > 0 && (
-                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                    {p.open}
-                  </span>
-                )}
-              </DropdownMenuItem>
+                project={p}
+                onConfirmDelete={() => setConfirming(p)}
+                {...handlers(p)}
+              />
             ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </PopoverContent>
+        </Popover>
       </SidebarMenuItem>
     )
   }
@@ -339,6 +355,106 @@ export function ProjectList({
     <div className="flex flex-col gap-4">
       {group('Pinned', pinned)}
       {group('Projects', rest)}
+    </div>
+  )
+}
+
+/**
+ * One project inside the rail's popover. The same three actions the expanded
+ * row has, in a list that has to stay open while they are used.
+ */
+function RailRow({
+  project,
+  onTogglePin,
+  onRename,
+  onConfirmDelete,
+}: {
+  project: ProjectSummary
+  onTogglePin: () => void
+  onRename: (name: string) => void
+  /** Delete is confirmed outside this popover — see the dialog in ProjectList. */
+  onConfirmDelete: () => void
+}) {
+  const [renaming, setRenaming] = useState(false)
+  const renameRef = useRef<HTMLInputElement>(null)
+
+  if (renaming)
+    return (
+      <RenameField
+        ref={renameRef}
+        name={project.name}
+        onRename={onRename}
+        onClose={() => setRenaming(false)}
+        // The row's own footprint, so the list doesn't shift as the field takes
+        // over: same height, radius and text inset as the link it replaces.
+        className="h-9 rounded-xl px-3 text-sm"
+      />
+    )
+
+  return (
+    <div className="group/rail relative flex items-center rounded-xl transition-colors hover:bg-accent has-[[data-popup-open]]:bg-accent">
+      {/* The name yields the lane rather than the actions overlapping it: 4rem
+          of padding appears under the pointer and the name re-ellipsises into
+          what is left. Nothing is reserved at rest, so a short list of short
+          names reads as plain text. */}
+      <Link
+        to="/p/$projectId"
+        params={{ projectId: project.id }}
+        className="flex min-w-0 flex-1 items-center gap-1 rounded-xl px-3 py-2 text-sm outline-none transition-[padding] group-hover/rail:pr-16 group-focus-within/rail:pr-16 group-has-[[data-popup-open]]/rail:pr-16"
+      >
+        <span className="truncate">{project.name}</span>
+        {/* Trails the name, so a long name ellipsises into the count instead of
+            pushing it under the actions. */}
+        {project.open > 0 && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            · {project.open}
+          </span>
+        )}
+      </Link>
+
+      {/* Siblings of the link, laid over the lane it just gave up — children
+          would make every click on them navigate. */}
+      <div className="absolute inset-y-0 right-1 flex items-center opacity-0 transition-opacity group-hover/rail:opacity-100 group-focus-within/rail:opacity-100 group-has-[[data-popup-open]]/rail:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground hover:bg-transparent hover:text-foreground"
+          aria-label={`${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`}
+          onClick={onTogglePin}
+        >
+          <HugeiconsIcon icon={project.pinned ? PinOffIcon : PinIcon} />
+        </Button>
+
+        {/* Its own menu, portalled out of the popover. Base UI keeps the two in
+            one floating tree, so opening this one does not read as a press
+            outside the list underneath it. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`Actions for ${project.name}`}
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:bg-transparent hover:text-foreground"
+              />
+            }
+          >
+            <HugeiconsIcon icon={MoreHorizontalIcon} />
+          </DropdownMenuTrigger>
+          {/* finalFocus lands the caret in the field rather than back on the ⋯
+              that opened it — by the time focus returns it is already mounted. */}
+          <DropdownMenuContent align="end" finalFocus={renameRef}>
+            <DropdownMenuItem onClick={() => setRenaming(true)}>
+              <HugeiconsIcon icon={PencilEdit02Icon} />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={onConfirmDelete}>
+              <HugeiconsIcon icon={Delete02Icon} />
+              Delete project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -373,9 +489,8 @@ function ProjectRow({
   // which would take a dialog rendered inside it down with it.
   const [confirming, setConfirming] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  // Uncontrolled: the field only has to survive until it commits, and reading
-  // the value on the way out means Escape can drop the edit by unmounting —
-  // no blur fires for a removed node, so there is no stale draft to undo.
+  // Held here rather than inside the field: the ⋯ menu hands focus to it on
+  // close, and by then the field it opened is already mounted.
   const renameRef = useRef<HTMLInputElement>(null)
   const done = project.total - project.open
   const summary =
@@ -385,42 +500,19 @@ function ProjectRow({
         ? `All ${project.total} done`
         : `${project.open} waiting${done ? ` · ${done} done` : ''}`
 
-  function commitRename() {
-    const next = renameRef.current?.value.trim()
-    setRenaming(false)
-    // An emptied field reads as "never mind", not as a request for a nameless
-    // project — same for typing the name it already had.
-    if (next && next !== project.name) onRename(next)
-  }
-
   if (renaming)
     return (
       <SidebarMenuItem>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            commitRename()
-          }}
-        >
-          <Input
-            ref={renameRef}
-            defaultValue={project.name}
-            aria-label={`Rename ${project.name}`}
-            maxLength={200}
-            autoComplete="off"
-            enterKeyHint="done"
-            autoFocus
-            onFocus={(e) => e.currentTarget.select()}
-            onBlur={commitRename}
-            // Escape unmounts the field, which is the whole rollback: nothing
-            // was written and the row repaints from the project it still has.
-            onKeyDown={(e) => e.key === 'Escape' && setRenaming(false)}
-            // Sits in the row's own footprint so the name does not jump when
-            // the field takes over: same height, radius and text inset as the
-            // button it replaces.
-            className={cn('rounded-lg px-3 text-sm', flat ? 'h-9' : 'h-14')}
-          />
-        </form>
+        <RenameField
+          ref={renameRef}
+          name={project.name}
+          onRename={onRename}
+          onClose={() => setRenaming(false)}
+          // Sits in the row's own footprint so the name does not jump when the
+          // field takes over: same height, radius and text inset as the button
+          // it replaces.
+          className={cn('rounded-lg px-3 text-sm', flat ? 'h-9' : 'h-14')}
+        />
       </SidebarMenuItem>
     )
 
@@ -448,6 +540,15 @@ function ProjectRow({
       >
         {flat ? (
           <>
+            {/* Every row leads with a glyph — the sidebar is a list of one kind
+                of thing, and a leading icon gives the names a common left edge
+                to hang off. Pinned rows swap the folder for the pin, so they
+                still read as pinned once the group heading has scrolled off.
+                The menu button already sizes and spaces any svg it holds. */}
+            <HugeiconsIcon
+              icon={project.pinned ? PinIcon : Folder01Icon}
+              className="text-sidebar-foreground/60"
+            />
             <span className="truncate">{project.name}</span>
             {/* Trails the name rather than sitting at the row's edge, where it
                 collided with the hover action. shrink-0 so a long name

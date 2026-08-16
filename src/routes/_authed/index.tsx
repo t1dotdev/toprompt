@@ -36,12 +36,9 @@ function Projects() {
         </div>
       </div>
 
-      {/* Same topbar as a project page — it carries the theme switch, and the
-          trigger that brings a collapsed sidebar back. */}
+      {/* No topbar here: the sidebar already owns the theme switch and its own
+          trigger, and this pane is one centred prompt with nothing to title. */}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
-        <AppHeader>
-          <ThemeToggle className="-mr-2 ml-auto shrink-0" />
-        </AppHeader>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
           <Logo size={40} className="opacity-60" />
           <p className="text-sm text-muted-foreground">

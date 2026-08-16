@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon } from '@hugeicons/core-free-icons'
 import { Logo } from '@/components/logo'
 import { ProjectList } from '@/components/project-list'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { UserMenu } from '@/components/user-menu'
 import {
   Sidebar,
@@ -47,7 +48,14 @@ export function ProjectSidebar({
       onClick={
         collapsed
           ? (e) => {
-              if (!(e.target as HTMLElement).closest('a,button')) toggleSidebar()
+              const target = e.target as HTMLElement
+              // The rail's popups are portalled to the body, but React bubbles
+              // their clicks through this tree anyway. Without this the sidebar
+              // widened out from under every menu item picked in one of them —
+              // and the row that was about to become a rename field went with
+              // it. A DOM containment check is what tells the two apart.
+              if (!e.currentTarget.contains(target)) return
+              if (!target.closest('a,button')) toggleSidebar()
             }
           : undefined
       }
@@ -80,9 +88,16 @@ export function ProjectSidebar({
                 toprompt
               </span>
             </Link>
-            {/* The theme switch moved to the topbar; this is the sidebar's own
-                control, and the topbar grows a trigger once it is collapsed. */}
-            <SidebarTrigger className="size-9 shrink-0 text-sidebar-foreground/60" />
+            {/* No gap inside the pair: two 36px buttons already carry 10px of
+                their own padding each, so the row's gap-2 on top of that put 28px
+                between the glyphs and read as two unrelated controls. The gap
+                stays between the wordmark and the pair, where it separates
+                identity from controls. Both quiet at the same weight for the
+                same reason. */}
+            <div className="flex shrink-0 items-center">
+              <ThemeToggle className="size-8 text-sidebar-foreground/60" />
+              <SidebarTrigger className="size-8 text-sidebar-foreground/60" />
+            </div>
           </div>
         )}
 
@@ -114,8 +129,19 @@ export function ProjectSidebar({
         <ProjectList projects={projects} flat />
       </SidebarContent>
 
+      {/* gap-2 collapsed: the rail keeps one 8px step between every icon, and
+          the footer is part of that column. */}
       <SidebarFooter>
-        <SidebarMenu>
+        <SidebarMenu className={collapsed ? 'gap-2' : undefined}>
+          {/* The rail has no room beside the trigger for the switch it sits
+              next to when the sidebar is open, so it moves to the foot of the
+              column instead of off the sidebar altogether — the topbar stopped
+              carrying one at this width. */}
+          {collapsed && (
+            <SidebarMenuItem className="flex justify-center">
+              <ThemeToggle className="size-8 text-sidebar-foreground/60" />
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <UserMenu user={user} variant="full" />
           </SidebarMenuItem>

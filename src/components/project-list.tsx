@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
@@ -154,6 +154,8 @@ export function ProjectList({
   flat?: boolean
 }) {
   const [, mutate] = useMutate()
+  const navigate = useNavigate()
+  const matchRoute = useMatchRoute()
   const [projects, addOptimistic] = useOptimisticList(loaded, applyProjectAction)
 
   if (projects.length === 0)
@@ -207,6 +209,19 @@ export function ProjectList({
                   mutate(() => deleteProjectFn({ data: { id: p.id } }), {
                     error: `Couldn't delete “${p.name}”.`,
                     optimistic: () => addOptimistic({ type: 'remove', id: p.id }),
+                    // Leave before the refetch, or the queue still on screen is
+                    // the one just deleted and its loader answers not found.
+                    // Only the open project moves the user — deleting some other
+                    // row from the sidebar should leave them where they are.
+                    onSuccess: () => {
+                      if (
+                        matchRoute({
+                          to: '/p/$projectId',
+                          params: { projectId: p.id },
+                        })
+                      )
+                        navigate({ to: '/' })
+                    },
                   })
                 }
               />

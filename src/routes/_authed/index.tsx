@@ -36,18 +36,25 @@ function Projects() {
         </div>
       </div>
 
-      <div className="hidden min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 md:flex">
-        <Logo size={40} className="opacity-60" />
-        <p className="text-sm text-muted-foreground">
-          {projects.length === 0
-            ? 'Name your first project to start a queue.'
-            : 'Pick a project from the sidebar, or start a new one.'}
-        </p>
-        <NewProjectForm
-          autoFocus
-          submitLabel="Create"
-          className="w-full max-w-xl"
-        />
+      {/* Same topbar as a project page — it carries the theme switch, and the
+          trigger that brings a collapsed sidebar back. */}
+      <div className="hidden min-h-0 flex-1 flex-col md:flex">
+        <AppHeader>
+          <ThemeToggle className="-mr-2 ml-auto shrink-0" />
+        </AppHeader>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
+          <Logo size={40} className="opacity-60" />
+          <p className="text-sm text-muted-foreground">
+            {projects.length === 0
+              ? 'Name your first project to start a queue.'
+              : 'Pick a project from the sidebar, or start a new one.'}
+          </p>
+          <NewProjectForm
+            autoFocus
+            submitLabel="Create"
+            className="w-full max-w-xl"
+          />
+        </div>
       </div>
     </>
   )

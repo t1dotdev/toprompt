@@ -33,6 +33,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
@@ -157,6 +158,23 @@ export function ProjectList({
   const navigate = useNavigate()
   const matchRoute = useMatchRoute()
   const [projects, addOptimistic] = useOptimisticList(loaded, applyProjectAction)
+  const { state, isMobile } = useSidebar()
+  // Only the sidebar copy can be collapsed — the home pane renders below the
+  // breakpoint, where the sidebar is a full-width sheet.
+  const collapsed = !!flat && state === 'collapsed' && !isMobile
+
+  const pinned = projects.filter((p) => p.pinned)
+  const rest = projects.filter((p) => !p.pinned)
+
+  if (collapsed)
+    return (
+      // gap-2, not the menu default gap-1: the rail keeps one 8px step between
+      // every icon, including across the header seam above it.
+      <SidebarMenu className="gap-2">
+        {railGroup('Pinned', PinIcon, pinned)}
+        {railGroup('Projects', Folder01Icon, rest)}
+      </SidebarMenu>
+    )
 
   if (projects.length === 0)
     return (
@@ -232,16 +250,55 @@ export function ProjectList({
     )
   }
 
+  /**
+   * Collapsed rail: a group is one icon, and its rows live in the menu hung off
+   * it. Switching queues is all the rail owes you — pinning and deleting wait
+   * for the sidebar to come back, where the rows are readable.
+   */
+  function railGroup(
+    label: string,
+    icon: React.ComponentProps<typeof HugeiconsIcon>['icon'],
+    rows: Array<ProjectSummary>,
+  ) {
+    if (rows.length === 0) return null
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={label}
+            render={
+              <SidebarMenuButton className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground" />
+            }
+          >
+            <HugeiconsIcon icon={icon} />
+            <span>{label}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            {rows.map((p) => (
+              <DropdownMenuItem
+                key={p.id}
+                render={
+                  <Link to="/p/$projectId" params={{ projectId: p.id }} />
+                }
+              >
+                <span className="truncate">{p.name}</span>
+                {p.open > 0 && (
+                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                    {p.open}
+                  </span>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {group(
-        'Pinned',
-        projects.filter((p) => p.pinned),
-      )}
-      {group(
-        'Projects',
-        projects.filter((p) => !p.pinned),
-      )}
+      {group('Pinned', pinned)}
+      {group('Projects', rest)}
     </div>
   )
 }

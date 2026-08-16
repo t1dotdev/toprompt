@@ -181,7 +181,7 @@ function ProjectView() {
       title={project.name}
       composer={
         <form
-          className="space-y-2"
+          className="relative"
           onSubmit={(e) => {
             e.preventDefault()
             create()
@@ -200,18 +200,24 @@ function ProjectView() {
             placeholder="Write a prompt…"
             aria-label="New prompt"
             maxLength={10000}
-            // Grows with the draft (field-sizing-content) but stops before it
-            // swallows the queue it sits under.
-            className="max-h-48 overflow-y-auto"
+            // The project-name pill, still a textarea: prompts arrive multi-line
+            // and run to 10k characters. field-sizing-content grows it, max-h-48
+            // stops it swallowing the queue above. pr-* is the button's lane —
+            // without it a long line types straight under the button.
+            className="max-h-48 min-h-13 overflow-y-auto rounded-4xl py-3.5 pr-20 pl-5 sm:pr-28 md:text-base"
           />
+          {/* Bottom-anchored, so it stays put as the field grows. */}
           <Button
             type="submit"
-            className="h-11 w-full"
+            className="absolute right-1.5 bottom-1.5 h-10 px-4"
             disabled={!trimmed || saving}
           >
             {saving && <Spinner />}
-            Add prompt
-            <kbd className="ml-1 hidden font-sans text-xs opacity-60 sm:inline">
+            Add
+            <kbd
+              aria-hidden
+              className="ml-1 hidden font-sans text-xs opacity-60 sm:inline"
+            >
               ⌘↵
             </kbd>
           </Button>
@@ -219,7 +225,7 @@ function ProjectView() {
       }
     >
       {prompts.length === 0 ? (
-        <Empty className="border">
+        <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <HugeiconsIcon icon={Note01Icon} />
@@ -234,20 +240,20 @@ function ProjectView() {
       ) : (
         <>
           {open.length === 0 ? (
-            <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               Queue clear — everything here has run.
             </p>
           ) : (
-            <ul className="space-y-2">{rows(open)}</ul>
+            <ul className="space-y-1">{rows(open)}</ul>
           )}
 
           {/* Finished work sinks below the live queue instead of padding it out. */}
           {done.length > 0 && (
             <>
-              <h2 className="mt-8 mb-2 px-1 text-xs font-medium text-muted-foreground">
+              <h2 className="mt-8 mb-2 px-2 text-xs font-medium text-muted-foreground">
                 Done · {done.length}
               </h2>
-              <ul className="space-y-2">{rows(done)}</ul>
+              <ul className="space-y-1">{rows(done)}</ul>
             </>
           )}
         </>
@@ -283,10 +289,11 @@ function PromptRow({
   }
 
   return (
+    // Borderless: hover is what separates one row from the next now, so the
+    // whole row lights up rather than just the copy target inside it.
     <li
       className={cn(
-        'rounded-xl border transition-colors motion-safe:animate-in motion-safe:fade-in',
-        prompt.done && 'bg-muted/30',
+        'rounded-2xl transition-colors motion-safe:animate-in motion-safe:fade-in hover:bg-muted/40',
         isPending && 'opacity-60',
       )}
     >
@@ -398,16 +405,25 @@ function ProjectShell({
             {title}
           </h1>
         )}
-        {/* The sidebar carries the toggle on desktop. */}
-        <ThemeToggle className="-mr-2 ml-auto shrink-0 md:hidden" />
+        <ThemeToggle className="-mr-2 ml-auto shrink-0" />
       </AppHeader>
-      {/* `div`, not `main`: SidebarInset is already the page's main. */}
+      {/* `div`, not `main`: SidebarInset is already the page's main. The column
+          cap is a phone-and-tablet thing — from `md` the queue takes the width
+          the sidebar leaves it. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-md px-4 py-4">{children}</div>
+        <div className="mx-auto max-w-md px-4 py-4 md:max-w-none md:px-6">
+          {children}
+        </div>
       </div>
       {composer && (
-        <div className="border-t bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto max-w-md px-4 pt-3">{composer}</div>
+        // Phone: sits on the bottom edge, under the thumb. Desktop: lifted off
+        // it — no safe area to hug there, and no thumb to reach with.
+        <div className="bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
+          {/* The queue runs the full width; the field does not — a 1400px input
+              is a long way for the eye to travel back on every line. */}
+          <div className="mx-auto max-w-md px-4 pt-3 md:max-w-3xl md:px-6">
+            {composer}
+          </div>
         </div>
       )}
     </div>
@@ -417,16 +433,11 @@ function ProjectShell({
 function ProjectPending() {
   return (
     <ProjectShell
-      composer={
-        <div className="space-y-2">
-          <Skeleton className="h-16" />
-          <Skeleton className="h-11 rounded-4xl" />
-        </div>
-      }
+      composer={<Skeleton className="h-13 rounded-4xl" />}
     >
-      <div className="space-y-2">
+      <div className="space-y-1">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-20" />
+          <Skeleton key={i} className="h-20 rounded-2xl" />
         ))}
       </div>
     </ProjectShell>
@@ -436,7 +447,7 @@ function ProjectPending() {
 function ProjectError({ reset }: { reset: () => void }) {
   return (
     <ProjectShell>
-      <Empty className="border">
+      <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={Alert02Icon} />
@@ -458,7 +469,7 @@ function ProjectError({ reset }: { reset: () => void }) {
 function ProjectNotFound() {
   return (
     <ProjectShell>
-      <Empty className="border">
+      <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={Alert02Icon} />

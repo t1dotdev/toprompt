@@ -26,16 +26,23 @@ body,
    document. */
 html {
   touch-action: manipulation;
+  /* The authed shell is fixed, so the document has nothing to scroll — and a
+     drag that lands anywhere outside a list (the create button, the composer,
+     the topbar) is handed straight to the viewport, which answers a scroll it
+     cannot perform by rubber-banding the whole app away or firing
+     pull-to-refresh. This is what says don't.
+
+     On the root, not on `body`: the property only governs a scroll container,
+     `body` is not one here, and unlike `overflow` it is not propagated from
+     `body` to the viewport — so on `body` it is a declaration that nothing
+     reads. */
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
   /* Landscape on a notched phone otherwise clips the column against the bezel. */
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
-  /* The authed shell is fixed, so the document has nothing to scroll — without
-     this a phone still rubber-bands the whole page away from under the topbar
-     when a scroll gesture runs off the end of the list inside it. */
-  overscroll-behavior: none;
   /* Suppressed because rows and prompt text are custom tap targets — the default
      grey flash paints a block over them. Each one defines its own :active state. */
   -webkit-tap-highlight-color: transparent;

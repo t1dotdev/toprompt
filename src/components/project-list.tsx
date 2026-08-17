@@ -343,8 +343,13 @@ export function ProjectList({
             <HugeiconsIcon icon={Folder01Icon} />
           </EmptyMedia>
           <EmptyTitle>No projects yet</EmptyTitle>
+          {/* The sidebar copy cannot say where to start, because the control
+              that starts one is on the home pane, not in the rail. The home
+              pane can, and now has to: its create action is a button in the
+              corner rather than a field sitting above this message. */}
           <EmptyDescription>
             A project is one queue of prompts — usually one per codebase.
+            {!flat && ' Tap + to start your first.'}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

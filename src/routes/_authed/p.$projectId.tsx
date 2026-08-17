@@ -276,6 +276,12 @@ function ProjectView() {
    */
   async function copy(p: Prompt, mark = false) {
     if (p.id === PENDING_ID || !(await copyPrompt(p.text))) return
+    // The phone answers the gesture itself rather than leaving the toast to do
+    // it — a swipe lands with the finger still on the glass, which is the one
+    // moment a tick that appears somewhere else is easy to miss. Android only:
+    // iOS has no Vibration API, and `?.` is the whole of the feature detection
+    // this needs.
+    navigator.vibrate?.(10)
     // Says both halves of what just happened — the checkbox ticking on its own
     // is the surprising one. Sonner's own live region announces it, so the row
     // does not carry a second one.
@@ -453,6 +459,106 @@ function ProjectView() {
   )
 }
 
+// Past this much travel a release commits the action instead of springing
+// back. Far enough that a scroll which drifted sideways never reaches it,
+// close enough to flick without a second thought.
+const SWIPE_COMMIT = 88
+
+// Where the row stops following the finger 1:1 and starts resisting, so a long
+// drag reads as "there is nothing further this way" rather than as the row
+// coming off its rails.
+const SWIPE_LIMIT = SWIPE_COMMIT * 1.4
+
+function resist(dx: number) {
+  const past = Math.abs(dx) - SWIPE_LIMIT
+  return past <= 0 ? dx : Math.sign(dx) * (SWIPE_LIMIT + past * 0.3)
+}
+
+/**
+ * Horizontal drag on a row, with the two actions it uncovers.
+ *
+ * Touch only, deliberately: a pointer has the buttons, and reading
+ * `pointerType` rather than a breakpoint means a touchscreen laptop gets the
+ * gesture without the app having to infer input from width.
+ *
+ * The axis is decided once, on the first 8px of movement, and never revisited.
+ * Until then the browser is still free to take the gesture as a scroll — which
+ * is what `touch-action: pan-y` on the row leaves it — and once the answer is
+ * `y` this hook is out of the way for the rest of the gesture. Getting that
+ * wrong in either direction is the difference between a list that scrolls and
+ * one that fights back.
+ */
+function useSwipe({
+  onLeft,
+  onRight,
+  enabled,
+}: {
+  onLeft: () => void
+  onRight: () => void
+  enabled: boolean
+}) {
+  const [dx, setDx] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const from = useRef<{ x: number; y: number; axis: 'ask' | 'x' | 'y' } | null>(
+    null,
+  )
+  // A drag still ends in a click, delivered to whatever the finger came down
+  // on. This is what stops that click ticking the checkbox it started from.
+  const swiped = useRef(false)
+
+  function settle() {
+    const gesture = from.current
+    from.current = null
+    setDragging(false)
+    setDx(0)
+    if (gesture?.axis !== 'x') return
+    if (dx <= -SWIPE_COMMIT) onLeft()
+    else if (dx >= SWIPE_COMMIT) onRight()
+  }
+
+  const handlers = enabled
+    ? {
+        onPointerDown(e: React.PointerEvent) {
+          if (e.pointerType !== 'touch') return
+          from.current = { x: e.clientX, y: e.clientY, axis: 'ask' }
+          swiped.current = false
+        },
+        onPointerMove(e: React.PointerEvent) {
+          const gesture = from.current
+          if (!gesture) return
+          const moved = { x: e.clientX - gesture.x, y: e.clientY - gesture.y }
+          if (gesture.axis === 'ask') {
+            if (Math.abs(moved.x) < 8 && Math.abs(moved.y) < 8) return
+            if (Math.abs(moved.y) >= Math.abs(moved.x)) {
+              from.current = null
+              return
+            }
+            gesture.axis = 'x'
+            // Keeps the rest of the gesture coming here even once the finger
+            // has left the row it started on.
+            e.currentTarget.setPointerCapture(e.pointerId)
+            setDragging(true)
+          }
+          swiped.current = true
+          setDx(resist(moved.x))
+        },
+        onPointerUp: settle,
+        onPointerCancel: settle,
+        // Capture, on the container: every control in the row is downstream of
+        // here, so one guard covers the checkbox, the prompt and Show all
+        // rather than each of them learning about swiping.
+        onClickCapture(e: React.MouseEvent) {
+          if (!swiped.current) return
+          swiped.current = false
+          e.preventDefault()
+          e.stopPropagation()
+        },
+      }
+    : {}
+
+  return { dx, dragging, handlers }
+}
+
 function PromptRow({
   prompt,
   copied,
@@ -477,12 +583,25 @@ function PromptRow({
   const preview =
     prompt.text.length > 40 ? `${prompt.text.slice(0, 40)}…` : prompt.text
 
+  const swipe = useSwipe({
+    onLeft: onDelete,
+    // Copy without ticking, which is exactly what the Copy button did — tapping
+    // the prompt is the one that also marks it done. Keeping the two gestures
+    // distinct is the whole reason both exist.
+    onRight: onCopy,
+    enabled: !isPending,
+  })
+
   // One pair, rendered into whichever lane the width has room for: beside the
-  // text from `md` up, down in the footer on a phone. Two 44px buttons are 88px
-  // of a 390px screen, and taken out of the text lane they leave a prompt about
-  // 40% more measure to wrap in — the footer beside the stamp was empty anyway.
-  // The lane that isn't in use is `display: none`, so neither the tab order nor
-  // a screen reader ever meets the second copy.
+  // text from `md` up, down in the footer below it. The lane that isn't in use
+  // is `display: none`, so neither the tab order nor a screen reader ever meets
+  // the second copy.
+  //
+  // On touch the footer pair goes `sr-only` instead of away: the swipe replaces
+  // them for anyone who can swipe, and a gesture is not an affordance
+  // VoiceOver or TalkBack can offer, so the buttons stay in the accessibility
+  // tree and come back visible the moment anything in the row takes keyboard
+  // focus.
   const actions = (
     <>
       {/* The word, not just the tick — the checkbox ticking itself says
@@ -495,7 +614,9 @@ function PromptRow({
         size="icon"
         className={cn(
           'h-11',
-          copied ? 'w-auto gap-1.5 px-3 text-foreground' : 'w-11 text-muted-foreground',
+          copied
+            ? 'w-auto gap-1.5 px-3 text-foreground'
+            : 'w-11 text-muted-foreground',
         )}
         onClick={onCopy}
         disabled={isPending}
@@ -540,109 +661,166 @@ function PromptRow({
     // coloured alert.
     <li
       className={cn(
-        'rounded-2xl border transition-colors duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2',
-        copied ? 'bg-primary/6' : 'bg-card hover:bg-muted/40',
+        'relative overflow-hidden rounded-2xl border motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2',
         isPending && 'opacity-60',
       )}
     >
-      {/* Every lane is 44px tall and the text's first line centres on 22px with
+      {/* What the drag uncovers, one action per half. The row slides over the
+          top, so only the side being pulled from is ever on screen and neither
+          needs to be shown or hidden as the finger moves. aria-hidden because
+          these are a rendering of the two buttons below, not two more of
+          them. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 flex text-sm font-medium select-none"
+      >
+        <span className="flex flex-1 items-center gap-2 bg-primary/10 px-5">
+          <HugeiconsIcon icon={Copy01Icon} className="size-5" />
+          Copy
+        </span>
+        <span className="flex flex-1 items-center justify-end gap-2 bg-destructive/10 px-5 text-destructive">
+          Delete
+          <HugeiconsIcon icon={Delete02Icon} className="size-5" />
+        </span>
+      </div>
+
+      {/* The layer that actually moves. It carries the bubble's fill, because
+          the fill is what has to travel for anything to be uncovered.
+          touch-pan-y hands vertical scrolling straight back to the browser and
+          keeps only the horizontal for the drag. */}
+      <div
+        {...swipe.handlers}
+        style={{
+          transform: `translate3d(${swipe.dx}px, 0, 0)`,
+          // Written here rather than as classes because two properties want
+          // two durations, and `transition-*` utilities would merge into one.
+          // Follows the finger with no easing at all, eases on the way home.
+          // The reduced-motion override in the stylesheet is `!important`, so
+          // it still outranks this.
+          transition: swipe.dragging
+            ? 'background-color 300ms'
+            : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 300ms',
+        }}
+        className={cn(
+          'relative touch-pan-y',
+          copied ? 'bg-primary/6' : 'bg-card hover:bg-muted/40',
+        )}
+      >
+        {/* Every lane is 44px tall and the text's first line centres on 22px with
           it, so the checkbox, the copy target and — from `md`, where they share
           this row — both icons sit on one optical line no matter how many lines
           the prompt runs to. */}
-      <div className="flex items-start gap-2 px-2 pr-3 pt-1.5 md:pr-2">
-        <div className="flex size-11 shrink-0 items-center justify-center">
-          {isPending ? (
-            <Spinner className="text-muted-foreground" />
-          ) : (
-            <Checkbox
-              checked={prompt.done}
-              aria-label={prompt.done ? 'Mark as not done' : 'Mark as done'}
-              onCheckedChange={(checked) => onToggle(Boolean(checked))}
-              // Widens the hit area to 44px without growing the control — the
-              // inset is the difference, so the box and its padding stay a
-              // 44px square at either size. 20px on a phone, where the tick is
-              // aimed at with a thumb rather than a cursor.
-              className="size-5 after:-inset-3 md:size-4 md:after:-inset-3.5"
-            />
-          )}
-        </div>
+        <div className="flex items-start gap-2 px-2 pr-3 pt-1.5 md:pr-2">
+          <div className="flex size-11 shrink-0 items-center justify-center">
+            {isPending ? (
+              <Spinner className="text-muted-foreground" />
+            ) : (
+              <Checkbox
+                checked={prompt.done}
+                aria-label={prompt.done ? 'Mark as not done' : 'Mark as done'}
+                onCheckedChange={(checked) => onToggle(Boolean(checked))}
+                // Widens the hit area to 44px without growing the control — the
+                // inset is the difference, so the box and its padding stay a
+                // 44px square at either size. 20px on a phone, where the tick is
+                // aimed at with a thumb rather than a cursor.
+                className="size-5 after:-inset-3 md:size-4 md:after:-inset-3.5"
+              />
+            )}
+          </div>
 
-        {/* The whole text block copies — that is the app's core action, so it
+          {/* The whole text block copies — that is the app's core action, so it
             gets the largest target. The trailing icon is what signals it. Once
             it is done the same target reverses it instead, which is why it
             carries a state, not a verb. */}
-        {/* Deliberately unlabelled: the prompt text is the accessible name, so a
+          {/* Deliberately unlabelled: the prompt text is the accessible name, so a
             screen reader reads the content instead of a generic action label. */}
-        <button
-          type="button"
-          aria-pressed={prompt.done}
-          onClick={onSelect}
-          disabled={isPending}
-          className="min-w-0 flex-1 cursor-pointer rounded-lg py-3 text-left outline-none transition-opacity focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70 disabled:cursor-default"
-        >
-          {/* Capped at a reading measure. The column is 768px wide now; prompt
+          <button
+            type="button"
+            aria-pressed={prompt.done}
+            onClick={onSelect}
+            disabled={isPending}
+            className="min-w-0 flex-1 cursor-pointer rounded-lg py-3 text-left outline-none transition-opacity focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70 disabled:cursor-default"
+          >
+            {/* Capped at a reading measure. The column is 768px wide now; prompt
               text is prose, and prose set to 100ch loses the line it is on.
               16px of it on a phone against 14px from `md`: this is the content
               the app exists to hold, and 14px is the density of a sidebar
               label, not of the thing you came to read. */}
-          <span
-            className={cn(
-              // select-text against the touch-wide `user-select: none`: this is
-              // the one string on the page worth holding a finger on, and the
-              // clipboard's failure message sends you here to do it.
-              'block max-w-[68ch] text-base break-words whitespace-pre-wrap select-text md:text-sm',
-              !expanded && isLong && 'line-clamp-4',
-              prompt.done && 'text-muted-foreground line-through',
-            )}
-          >
-            {prompt.text}
-          </span>
-        </button>
+            <span
+              className={cn(
+                // select-text against the touch-wide `user-select: none`: this is
+                // the one string on the page worth holding a finger on, and the
+                // clipboard's failure message sends you here to do it.
+                'block max-w-[68ch] text-base break-words whitespace-pre-wrap select-text md:text-sm',
+                !expanded && isLong && 'line-clamp-4',
+                prompt.done && 'text-muted-foreground line-through',
+              )}
+            >
+              {prompt.text}
+            </span>
+          </button>
 
-        <div className="hidden shrink-0 items-center md:flex">{actions}</div>
-      </div>
+          <div className="hidden shrink-0 items-center md:flex">{actions}</div>
+        </div>
 
-      {/* pl-13 lands the footer on the text's left edge — when it was written,
+        {/* pl-13 lands the footer on the text's left edge — when it was written,
           and the control that unfolds it, belong to the block above rather than
           to the bubble's outer padding. The pending row has no time yet: it is
           being written as you look at it.
           A fixed height rather than padding: the stamp arrives one tick after
           mount, and an empty <time> in an auto-height row collapses it, so
           every bubble would grow ~17px right after the queue had already been
-          scrolled to what was then the bottom. h-11 on a phone because the row
-          actions live down here at that width, and they are 44px tall. */}
-      <div className="flex h-11 items-center gap-1 pr-1 pl-13 text-xs text-muted-foreground md:h-7 md:pr-3 md:text-[11px]">
-        {!isPending && <Stamp at={prompt.createdAt} />}
-        {isLong && (
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-            className="-my-1 flex items-center gap-1 rounded-lg px-2 py-2.5 font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-1.5 md:py-1"
-          >
-            <HugeiconsIcon
-              icon={ArrowDown01Icon}
-              className={cn(
-                'size-3.5 transition-transform',
-                expanded && 'rotate-180',
-              )}
-            />
-            {/* The count is what the label is *for* on a wide screen; on a
+          scrolled to what was then the bottom.
+          Three of those heights. 44px below `md`, where the row actions live
+          down here; 32px once the device is a touch one and the swipe has
+          taken them away, leaving the stamp on its own — unless the prompt is
+          long, because then Show all is still a target in this row; and 28px
+          from `md`, where the footer is only ever the stamp. The `max-md`
+          prefix keeps the touch rule and the `md` rule in media queries that
+          cannot both match, so a touch tablet is not left to source order. */}
+        <div
+          className={cn(
+            'flex h-11 items-center gap-1 pr-1 pl-13 text-xs text-muted-foreground md:h-7 md:pr-3 md:text-[11px]',
+            !isLong && 'max-md:pointer-coarse:h-8',
+            // Anything in the row taking keyboard focus gives the pair its space
+            // back, so the focus ring never lands on something invisible.
+            'max-md:pointer-coarse:has-[:focus-visible]:h-11',
+          )}
+        >
+          {!isPending && <Stamp at={prompt.createdAt} />}
+          {isLong && (
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              aria-expanded={expanded}
+              className="-my-1 flex items-center gap-1 rounded-lg px-2 py-2.5 font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-1.5 md:py-1"
+            >
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                className={cn(
+                  'size-3.5 transition-transform',
+                  expanded && 'rotate-180',
+                )}
+              />
+              {/* The count is what the label is *for* on a wide screen; on a
                 phone it is the half that pushes the control under the actions
                 now sharing this row, and "Show all" already says the thing. */}
-            {expanded ? (
-              'Show less'
-            ) : (
-              <>
-                <span className="md:hidden">Show all</span>
-                <span className="hidden md:inline">
-                  Show all {prompt.text.length} characters
-                </span>
-              </>
-            )}
-          </button>
-        )}
-        <div className="ml-auto flex items-center md:hidden">{actions}</div>
+              {expanded ? (
+                'Show less'
+              ) : (
+                <>
+                  <span className="md:hidden">Show all</span>
+                  <span className="hidden md:inline">
+                    Show all {prompt.text.length} characters
+                  </span>
+                </>
+              )}
+            </button>
+          )}
+          <div className="ml-auto flex items-center md:hidden pointer-coarse:sr-only pointer-coarse:focus-within:not-sr-only">
+            {actions}
+          </div>
+        </div>
       </div>
     </li>
   )
@@ -686,7 +864,10 @@ function ProjectMenu({
             />
           }
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-5 md:size-4" />
+          <HugeiconsIcon
+            icon={MoreHorizontalIcon}
+            className="size-5 md:size-4"
+          />
         </DropdownMenuTrigger>
         {/* Hangs off the right edge it sits on, rather than off the screen. */}
         <DropdownMenuContent align="end" finalFocus={finalFocus}>

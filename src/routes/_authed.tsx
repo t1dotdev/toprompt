@@ -1,4 +1,10 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { useEffect, useRef } from 'react'
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useRouter,
+} from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, RefreshIcon } from '@hugeicons/core-free-icons'
 import { ProjectSidebar } from '@/components/project-sidebar'
@@ -28,9 +34,43 @@ export const Route = createFileRoute('/_authed')({
   component: AuthedLayout,
 })
 
+// Long enough that flicking between two apps does not refetch on every return,
+// short enough that a queue left open since this morning is not what you come
+// back to.
+const REFETCH_AFTER_MS = 10_000
+
+/**
+ * Refetches the loaders when the app comes back to the foreground.
+ *
+ * The queue is server state with no realtime channel, so the only thing that
+ * has ever refreshed it is a page load — and installed to a home screen there
+ * is no reload button to press, no address bar to re-enter, and (since the
+ * shell went `fixed`) no pull-to-refresh to pull. Coming back from another app
+ * is the moment the list is most likely stale and the moment the user is least
+ * able to say so.
+ */
+function useRefetchOnReturn() {
+  const router = useRouter()
+  const refetched = useRef(0)
+
+  useEffect(() => {
+    refetched.current = Date.now()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - refetched.current < REFETCH_AFTER_MS) return
+      refetched.current = Date.now()
+      router.invalidate()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [router])
+}
+
 function AuthedLayout() {
   const { user } = Route.useRouteContext()
   const projects = Route.useLoaderData()
+
+  useRefetchOnReturn()
 
   // h-dvh over the provider's own min-h-svh: the shell owns the viewport height
   // so the sidebar and the page next to it scroll independently instead of

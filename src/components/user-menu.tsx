@@ -94,6 +94,12 @@ export function UserMenu({
         <DropdownMenuItem
           onClick={async () => {
             await authClient.signOut()
+            // The offline cache holds server-rendered pages, which means it
+            // holds this account's project names. Leaving them on the device
+            // after the session has gone is the one thing that cache must not
+            // do. Fire-and-forget: the worker answers on its own thread and
+            // signing out should not wait on it.
+            navigator.serviceWorker?.controller?.postMessage('clear-cache')
             router.navigate({ to: '/login' })
           }}
         >

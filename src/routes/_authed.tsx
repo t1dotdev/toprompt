@@ -34,8 +34,8 @@ function AuthedLayout() {
 
   // h-dvh over the provider's own min-h-svh: the shell owns the viewport height
   // so the sidebar and the page next to it scroll independently instead of
-  // dragging one long document. 18rem because a project row carries a drag
-  // handle and an actions button either side of its name.
+  // dragging one long document. 18rem because a project row carries a pin and
+  // an actions button to the right of its name.
   //
   // fixed, because h-dvh alone is a promise the browser does not always keep —
   // a phone mid-toolbar-animation, a soft keyboard, anything that leaves the

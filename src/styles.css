@@ -16,6 +16,18 @@ body,
   min-height: 100%;
 }
 
+/* No double-tap zoom. The viewport meta only stops pinching, and it does not
+   stop that at all on iOS; this is the gesture that actually fires by accident,
+   because a queue is a column of tap targets and two taps inside 300ms is
+   someone ticking two prompts off, not asking to zoom. `manipulation` keeps
+   panning and scrolling untouched — it subtracts the double-tap and nothing
+   else. Set on the root because the effective behaviour is the intersection of
+   an element's own value with its ancestors', so one declaration covers the
+   document. */
+html {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   /* Landscape on a notched phone otherwise clips the column against the bezel. */
@@ -27,6 +39,24 @@ body {
   /* Suppressed because rows and prompt text are custom tap targets — the default
      grey flash paints a block over them. Each one defines its own :active state. */
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch input only — a trackpad or mouse keeps every one of these. Holding a
+   finger on a row is a mis-tap here, and answering it with a selection handle
+   or an iOS callout is the clearest tell that a page is a page. The two places
+   a hold is genuinely meant — a field being edited, and the prompt text itself,
+   which the clipboard's own failure message tells you to select by hand — say
+   so for themselves. */
+@media (pointer: coarse) {
+  body {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

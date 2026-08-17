@@ -587,7 +587,10 @@ function PromptRow({
               label, not of the thing you came to read. */}
           <span
             className={cn(
-              'block max-w-[68ch] text-base break-words whitespace-pre-wrap md:text-sm',
+              // select-text against the touch-wide `user-select: none`: this is
+              // the one string on the page worth holding a finger on, and the
+              // clipboard's failure message sends you here to do it.
+              'block max-w-[68ch] text-base break-words whitespace-pre-wrap select-text md:text-sm',
               !expanded && isLong && 'line-clamp-4',
               prompt.done && 'text-muted-foreground line-through',
             )}

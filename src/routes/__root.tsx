@@ -56,7 +56,14 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
+        // user-scalable=no is normally a WCAG 1.4.4 violation, and iOS Safari
+        // has ignored it since iOS 10 for exactly that reason — so this only
+        // binds Android, and only against pinch. What makes that acceptable
+        // here rather than merely convenient: nothing in the app is set below
+        // 12px on a phone, the prompt text is 16px, and the reader's own font
+        // scaling still applies because every size is in rem.
+        content:
+          'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
       },
       {
         name: 'description',

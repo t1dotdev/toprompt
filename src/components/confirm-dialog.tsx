@@ -42,15 +42,23 @@ export function ConfirmDialog({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       {trigger && <AlertDialogTrigger render={trigger} />}
+      {/* Type and targets grow on a phone, the 320px box does not: an alert is
+          the one surface a narrow measure suits, and both answers still fit
+          side by side at 44px tall. */}
       <AlertDialogContent size="sm">
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle className="text-xl md:text-lg">
+            {title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-base md:text-sm">
+            {description}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel className="h-11 md:h-9">Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
+            className="h-11 md:h-9"
             onClick={() => {
               setOpen(false)
               onConfirm()

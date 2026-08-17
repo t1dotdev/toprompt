@@ -405,12 +405,15 @@ function ProjectView() {
             // and run to 10k characters. field-sizing-content grows it, max-h-48
             // stops it swallowing the queue above. pr-* is the button's lane —
             // without it a long line types straight under the button.
-            className="max-h-48 min-h-13 overflow-y-auto rounded-4xl py-3.5 pr-20 pl-5 sm:pr-28 md:text-base"
+            className="max-h-48 min-h-14 overflow-y-auto rounded-4xl py-3.5 pr-22 pl-5 sm:pr-28 md:min-h-13 md:text-base"
           />
-          {/* Bottom-anchored, so it stays put as the field grows. */}
+          {/* Bottom-anchored, so it stays put as the field grows. A full 44px
+              on a phone — this is the one control the whole screen is aimed at
+              — and the field's min height carries the extra 4px with it so the
+              button keeps its 6px of surround at either size. */}
           <Button
             type="submit"
-            className="absolute right-1.5 bottom-1.5 h-10 px-4"
+            className="absolute right-1.5 bottom-1.5 h-11 px-4 md:h-10"
             disabled={!trimmed || saving}
           >
             {saving && <Spinner />}
@@ -474,6 +477,56 @@ function PromptRow({
   const preview =
     prompt.text.length > 40 ? `${prompt.text.slice(0, 40)}…` : prompt.text
 
+  // One pair, rendered into whichever lane the width has room for: beside the
+  // text from `md` up, down in the footer on a phone. Two 44px buttons are 88px
+  // of a 390px screen, and taken out of the text lane they leave a prompt about
+  // 40% more measure to wrap in — the footer beside the stamp was empty anyway.
+  // The lane that isn't in use is `display: none`, so neither the tab order nor
+  // a screen reader ever meets the second copy.
+  const actions = (
+    <>
+      {/* The word, not just the tick — the checkbox ticking itself says
+          "done", and this is what says the clipboard was the reason. It
+          grows into the lane beside it rather than pushing Delete: the target
+          you just missed should not slide under the finger that missed
+          it. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          'h-11',
+          copied ? 'w-auto gap-1.5 px-3 text-foreground' : 'w-11 text-muted-foreground',
+        )}
+        onClick={onCopy}
+        disabled={isPending}
+        aria-label={`Copy prompt: ${preview}`}
+      >
+        {/* Keyed so the tick fades in as its own element rather than the
+            copy glyph mutating in place. */}
+        <HugeiconsIcon
+          key={copied ? 'copied' : 'idle'}
+          icon={copied ? Tick02Icon : Copy01Icon}
+          className="size-5 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75 md:size-4"
+        />
+        {copied && (
+          <span className="text-xs motion-safe:animate-in motion-safe:fade-in">
+            Copied
+          </span>
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-11 text-muted-foreground hover:text-destructive"
+        onClick={onDelete}
+        disabled={isPending}
+        aria-label={`Delete prompt: ${preview}`}
+      >
+        <HugeiconsIcon icon={Delete02Icon} className="size-5 md:size-4" />
+      </Button>
+    </>
+  )
+
   return (
     // Its own bubble, spanning the column: the gap between two of them is what
     // separates one prompt from the next, and a shared left and right edge is
@@ -493,9 +546,10 @@ function PromptRow({
       )}
     >
       {/* Every lane is 44px tall and the text's first line centres on 22px with
-          it, so the checkbox, the copy target and both icons sit on one optical
-          line no matter how many lines the prompt runs to. */}
-      <div className="flex items-start gap-2 px-2 pt-1.5">
+          it, so the checkbox, the copy target and — from `md`, where they share
+          this row — both icons sit on one optical line no matter how many lines
+          the prompt runs to. */}
+      <div className="flex items-start gap-2 px-2 pr-3 pt-1.5 md:pr-2">
         <div className="flex size-11 shrink-0 items-center justify-center">
           {isPending ? (
             <Spinner className="text-muted-foreground" />
@@ -504,8 +558,11 @@ function PromptRow({
               checked={prompt.done}
               aria-label={prompt.done ? 'Mark as not done' : 'Mark as done'}
               onCheckedChange={(checked) => onToggle(Boolean(checked))}
-              // Widens the hit area to 44px without growing the 16px control.
-              className="after:-inset-3.5"
+              // Widens the hit area to 44px without growing the control — the
+              // inset is the difference, so the box and its padding stay a
+              // 44px square at either size. 20px on a phone, where the tick is
+              // aimed at with a thumb rather than a cursor.
+              className="size-5 after:-inset-3 md:size-4 md:after:-inset-3.5"
             />
           )}
         </div>
@@ -524,10 +581,13 @@ function PromptRow({
           className="min-w-0 flex-1 cursor-pointer rounded-lg py-3 text-left outline-none transition-opacity focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70 disabled:cursor-default"
         >
           {/* Capped at a reading measure. The column is 768px wide now; prompt
-              text is prose, and prose set to 100ch loses the line it is on. */}
+              text is prose, and prose set to 100ch loses the line it is on.
+              16px of it on a phone against 14px from `md`: this is the content
+              the app exists to hold, and 14px is the density of a sidebar
+              label, not of the thing you came to read. */}
           <span
             className={cn(
-              'block max-w-[68ch] text-sm break-words whitespace-pre-wrap',
+              'block max-w-[68ch] text-base break-words whitespace-pre-wrap md:text-sm',
               !expanded && isLong && 'line-clamp-4',
               prompt.done && 'text-muted-foreground line-through',
             )}
@@ -536,65 +596,26 @@ function PromptRow({
           </span>
         </button>
 
-        <div className="flex shrink-0 items-center">
-          {/* The word, not just the tick — the checkbox ticking itself says
-              "done", and this is what says the clipboard was the reason. It
-              grows into the text lane rather than pushing Delete: the target
-              you just missed should not slide under the finger that missed
-              it. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-11',
-              copied ? 'w-auto gap-1.5 px-3 text-foreground' : 'w-11 text-muted-foreground',
-            )}
-            onClick={onCopy}
-            disabled={isPending}
-            aria-label={`Copy prompt: ${preview}`}
-          >
-            {/* Keyed so the tick fades in as its own element rather than the
-                copy glyph mutating in place. */}
-            <HugeiconsIcon
-              key={copied ? 'copied' : 'idle'}
-              icon={copied ? Tick02Icon : Copy01Icon}
-              className="motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75"
-            />
-            {copied && (
-              <span className="text-xs motion-safe:animate-in motion-safe:fade-in">
-                Copied
-              </span>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11 text-muted-foreground hover:text-destructive"
-            onClick={onDelete}
-            disabled={isPending}
-            aria-label={`Delete prompt: ${preview}`}
-          >
-            <HugeiconsIcon icon={Delete02Icon} />
-          </Button>
-        </div>
+        <div className="hidden shrink-0 items-center md:flex">{actions}</div>
       </div>
 
       {/* pl-13 lands the footer on the text's left edge — when it was written,
           and the control that unfolds it, belong to the block above rather than
           to the bubble's outer padding. The pending row has no time yet: it is
           being written as you look at it.
-          h-7 rather than padding: the stamp arrives one tick after mount, and an
-          empty <time> in an auto-height row collapses it, so every bubble would
-          grow ~17px right after the queue had already been scrolled to what was
-          then the bottom. */}
-      <div className="flex h-7 items-center gap-1 pr-3 pl-13 text-[11px] text-muted-foreground">
+          A fixed height rather than padding: the stamp arrives one tick after
+          mount, and an empty <time> in an auto-height row collapses it, so
+          every bubble would grow ~17px right after the queue had already been
+          scrolled to what was then the bottom. h-11 on a phone because the row
+          actions live down here at that width, and they are 44px tall. */}
+      <div className="flex h-11 items-center gap-1 pr-1 pl-13 text-xs text-muted-foreground md:h-7 md:pr-3 md:text-[11px]">
         {!isPending && <Stamp at={prompt.createdAt} />}
         {isLong && (
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
             aria-expanded={expanded}
-            className="-my-1 flex items-center gap-1 rounded-lg px-1.5 py-1 font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="-my-1 flex items-center gap-1 rounded-lg px-2 py-2.5 font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-1.5 md:py-1"
           >
             <HugeiconsIcon
               icon={ArrowDown01Icon}
@@ -603,9 +624,22 @@ function PromptRow({
                 expanded && 'rotate-180',
               )}
             />
-            {expanded ? 'Show less' : `Show all ${prompt.text.length} characters`}
+            {/* The count is what the label is *for* on a wide screen; on a
+                phone it is the half that pushes the control under the actions
+                now sharing this row, and "Show all" already says the thing. */}
+            {expanded ? (
+              'Show less'
+            ) : (
+              <>
+                <span className="md:hidden">Show all</span>
+                <span className="hidden md:inline">
+                  Show all {prompt.text.length} characters
+                </span>
+              </>
+            )}
           </button>
         )}
+        <div className="ml-auto flex items-center md:hidden">{actions}</div>
       </div>
     </li>
   )
@@ -649,7 +683,7 @@ function ProjectMenu({
             />
           }
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} />
+          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-5 md:size-4" />
         </DropdownMenuTrigger>
         {/* Hangs off the right edge it sits on, rather than off the screen. */}
         <DropdownMenuContent align="end" finalFocus={finalFocus}>
@@ -704,7 +738,9 @@ function ProjectShell({
   // the queue scrolls between a fixed header and a composer on the bottom edge.
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <AppHeader>
+      {/* The queue's own cap, not the home list's: below `md` the bar would
+          otherwise sit 448px wide over a column running the full width. */}
+      <AppHeader className="max-w-3xl">
         {/* From `md` up the sidebar is the way back, and it never left. */}
         <Button
           variant="ghost"
@@ -714,7 +750,9 @@ function ProjectShell({
           nativeButton={false}
           render={<Link to="/" />}
         >
-          <HugeiconsIcon icon={ArrowLeft01Icon} />
+          {/* Phone-only button, so no `md` half to it: back is the one control
+              you aim at without looking. */}
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="size-6" />
         </Button>
         {title}
         {/* Phone only. From `md` the sidebar is on screen and carries the
@@ -752,19 +790,24 @@ function ProjectShell({
 
 function ProjectPending() {
   return (
-    <ProjectShell composer={<Skeleton className="h-13 rounded-4xl" />}>
+    <ProjectShell composer={<Skeleton className="h-14 rounded-4xl md:h-13" />}>
       {/* Traces the loaded bubbles — same border, same lanes, same column
-          width — so nothing shifts when the real ones land. */}
+          width, and the same footer lane under them — so nothing shifts when
+          the real ones land. */}
       <div className="space-y-2">
         {[70, 45, 60].map((width, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2 rounded-2xl border px-2 py-1.5"
-          >
-            <div className="flex size-11 shrink-0 items-center justify-center">
-              <Skeleton className="size-4 rounded-[6px]" />
+          <div key={i} className="rounded-2xl border px-2 pt-1.5">
+            <div className="flex h-11 items-center gap-2">
+              <div className="flex size-11 shrink-0 items-center justify-center">
+                <Skeleton className="size-5 rounded-[6px] md:size-4" />
+              </div>
+              <Skeleton
+                className="h-3.5 flex-1"
+                style={{ maxWidth: `${width}%` }}
+              />
             </div>
-            <Skeleton className="h-3.5 flex-1" style={{ maxWidth: `${width}%` }} />
+            {/* The stamp's lane — and on a phone the row actions' lane too. */}
+            <div className="h-11 md:h-7" />
           </div>
         ))}
       </div>

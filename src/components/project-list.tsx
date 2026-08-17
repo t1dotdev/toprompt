@@ -133,19 +133,30 @@ export function NewProjectForm({
         autoFocus={autoFocus}
         // pr-32 is the button's width plus its inset — without it a long name
         // types straight under the button.
-        className={cn('h-11', submitLabel && 'h-13 pr-32 pl-5 md:text-base')}
+        // The compact shape renders on the phone home pane only, so it is sized
+        // for a thumb outright rather than growing into one below a breakpoint.
+        className={cn('h-12', submitLabel && 'h-13 pr-32 pl-5 md:text-base')}
       />
       <Button
         type="submit"
         size={submitLabel ? undefined : 'icon'}
         className={cn(
           'h-11',
-          submitLabel ? 'absolute inset-y-1.5 right-1.5 h-auto px-4' : 'size-11',
+          submitLabel ? 'absolute inset-y-1.5 right-1.5 h-auto px-4' : 'size-12',
         )}
         disabled={!trimmed || saving}
         aria-label={submitLabel ? undefined : 'Add project'}
       >
-        {saving ? <Spinner /> : <HugeiconsIcon icon={Add01Icon} />}
+        {saving ? (
+          <Spinner />
+        ) : (
+          // Sized here rather than from the button, whose own
+          // `:not([class*='size-'])` rule outranks a plain `[&_svg]:` override.
+          <HugeiconsIcon
+            icon={Add01Icon}
+            className={submitLabel ? undefined : 'size-5'}
+          />
+        )}
         {submitLabel}
       </Button>
     </form>
@@ -273,7 +284,13 @@ export function ProjectList({
             // list-none plus the webkit rule drop the native triangle — the
             // chevron below is the marker. `flex` on the label already fights
             // summary's display, so the marker has to go explicitly.
-            className="group/label cursor-pointer list-none gap-1 select-none hover:text-sidebar-foreground [&::-webkit-details-marker]:hidden"
+            // On the phone home pane these headings are the page's only
+            // structure, so they carry a readable size; in the sidebar they
+            // stay the quiet 12px label the rest of the rail is set in.
+            className={cn(
+              'group/label cursor-pointer list-none gap-1 select-none hover:text-sidebar-foreground [&::-webkit-details-marker]:hidden',
+              !flat && 'h-9 text-sm md:h-8 md:text-xs',
+            )}
           >
             {label}
             {/* Points right while folded, down while open. Folded it stays on
@@ -459,6 +476,13 @@ function RailRow({
   )
 }
 
+// Below `md` these are always-on controls on a touch screen, so they are sized
+// as ones: a 36px square with a 20px glyph, laid out edge to edge with a real
+// gap between them. The built-in `after:-inset-2` that stretched a 20px icon to
+// a 36px hit area comes off with them — at 36px the button *is* the target, and
+// the two expanded hit boxes used to overlap. From `md` up the pair is back to
+// the 20px hover affordance the sidebar is drawn around.
+//
 // Shared by both row actions. showOnHover also reveals on focus-within, which
 // left an action stuck on after a click — the row it navigated to keeps the
 // focus. Swapped for focus-visible so only keyboard focus reveals it; both
@@ -470,7 +494,7 @@ function RailRow({
 // hover chip — the row already lights up underneath, so the icon going
 // full-strength is affordance enough.
 const rowActionClass =
-  'top-1/2! -translate-y-1/2 text-sidebar-foreground/60 hover:bg-transparent hover:text-sidebar-accent-foreground md:group-focus-within/menu-item:opacity-0 md:group-hover/menu-item:opacity-100! md:group-has-[:focus-visible]/menu-item:opacity-100'
+  'top-1/2! size-9 -translate-y-1/2 text-sidebar-foreground/60 after:hidden hover:bg-transparent hover:text-sidebar-accent-foreground md:size-5 [&>svg]:size-5 md:[&>svg]:size-4 md:group-focus-within/menu-item:opacity-0 md:group-hover/menu-item:opacity-100! md:group-has-[:focus-visible]/menu-item:opacity-100'
 
 function ProjectRow({
   project,
@@ -511,7 +535,10 @@ function ProjectRow({
           // Sits in the row's own footprint so the name does not jump when the
           // field takes over: same height, radius and text inset as the button
           // it replaces.
-          className={cn('rounded-lg px-3 text-sm', flat ? 'h-9' : 'h-14')}
+          className={cn(
+            'rounded-lg px-3 text-sm',
+            flat ? 'h-9' : 'h-16 md:h-14',
+          )}
         />
       </SidebarMenuItem>
     )
@@ -521,13 +548,13 @@ function ProjectRow({
       <SidebarMenuButton
         size={flat ? 'default' : 'lg'}
         variant={flat ? 'default' : 'outline'}
-        // pr-18! is both actions' lane plus a gap. Below md the actions are
-        // always on, so it is always reserved; from md they only appear on
-        // hover/keyboard-focus/open-menu, so the name gets the full width until
-        // then and the lane opens with them (the variant's
-        // transition-[width,height,padding] eases it). That lane is the tighter
-        // pr-15 — the actions end 3.25rem in, so 3.75rem is them plus a 0.5rem
-        // gap, and the name keeps 12px more than the always-on lane. All ! because the base
+        // pr-22! is both actions' lane plus a gap. Below md the actions are
+        // always on and 36px wide, so 5.5rem is always reserved; from md they
+        // shrink to 20px and only appear on hover/keyboard-focus/open-menu, so
+        // the name gets the full width until then and the lane opens with them
+        // (the variant's transition-[width,height,padding] eases it). That lane
+        // is the tighter pr-15 — the actions end 3.25rem in, so 3.75rem is them
+        // plus a 0.5rem gap. All ! because the base
         // variant's `group-has-data-[sidebar=menu-action]:pr-8` outranks a plain
         // pr-*; the conditional ones then outrank md:pr-3! on their extra
         // group selector. An action is a sibling sitting on top of this button,
@@ -535,7 +562,12 @@ function ProjectRow({
         // keeps the whole row lit while the pointer is on an action, and
         // has-[[data-popup-open]] holds that once the menu takes the pointer
         // away.
-        className="pr-18! group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-has-[[data-popup-open]]/menu-item:bg-sidebar-accent data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:pr-3! md:group-hover/menu-item:pr-15! md:group-has-[:focus-visible]/menu-item:pr-15! md:group-has-[[data-popup-open]]/menu-item:pr-15!"
+        className={cn(
+          'pr-22! group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-has-[[data-popup-open]]/menu-item:bg-sidebar-accent data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:pr-3! md:group-hover/menu-item:pr-15! md:group-has-[:focus-visible]/menu-item:pr-15! md:group-has-[[data-popup-open]]/menu-item:pr-15!',
+          // The card carries two lines of type at reading sizes on a phone,
+          // which the sidebar's 56px row cannot hold.
+          !flat && 'h-16 md:h-14',
+        )}
         render={<Link to="/p/$projectId" params={{ projectId: project.id }} />}
       >
         {flat ? (
@@ -561,9 +593,14 @@ function ProjectRow({
             )}
           </>
         ) : (
-          <span className="grid min-w-0 flex-1 leading-tight">
-            <span className="truncate font-medium">{project.name}</span>
-            <span className="truncate text-xs text-muted-foreground">
+          // On a phone this list *is* the home screen, so it is set at reading
+          // sizes; in the sidebar it is a switcher beside the page you are
+          // working in, and stays at label sizes.
+          <span className="grid min-w-0 flex-1 gap-0.5 leading-tight md:gap-0">
+            <span className="truncate text-base font-medium md:text-sm">
+              {project.name}
+            </span>
+            <span className="truncate text-sm text-muted-foreground md:text-xs">
               {summary}
             </span>
           </span>
@@ -578,7 +615,9 @@ function ProjectRow({
         showOnHover
         onClick={onTogglePin}
         aria-label={`${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`}
-        className={cn(rowActionClass, 'right-8')}
+        // Clears the ⋯ at either size: 36px buttons need 44px of offset, 20px
+        // ones need 32.
+        className={cn(rowActionClass, 'right-11 md:right-8')}
       >
         <HugeiconsIcon icon={project.pinned ? PinOffIcon : PinIcon} />
       </SidebarMenuAction>

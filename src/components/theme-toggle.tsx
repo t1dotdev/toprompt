@@ -27,8 +27,14 @@ export function ThemeToggle({ className }: { className?: string }) {
         localStorage.setItem('theme', dark ? 'dark' : 'light')
       }}
     >
-      <HugeiconsIcon icon={Moon02Icon} className="dark:hidden" />
-      <HugeiconsIcon icon={Sun03Icon} className="hidden dark:block" />
+      {/* 20px on a phone, 16px from `md`: the glyph is the whole control here,
+          and at 16px inside a 44px square it reads as a speck on a screen held
+          at arm's length. */}
+      <HugeiconsIcon icon={Moon02Icon} className="size-5 dark:hidden md:size-4" />
+      <HugeiconsIcon
+        icon={Sun03Icon}
+        className="hidden size-5 dark:block md:size-4"
+      />
     </Button>
   )
 }

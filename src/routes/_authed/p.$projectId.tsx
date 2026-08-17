@@ -687,7 +687,14 @@ function PromptRow({
       {/* The layer that actually moves. It carries the bubble's fill, because
           the fill is what has to travel for anything to be uncovered.
           touch-pan-y hands vertical scrolling straight back to the browser and
-          keeps only the horizontal for the drag. */}
+          keeps only the horizontal for the drag.
+
+          Three fills, in the order they outrank each other. A done prompt drops
+          off the card onto the muted surface — the strike-through is a detail
+          you read, the fill is what the eye sorts the column by from a scroll
+          away, and hovering one lifts it back toward the card it came from,
+          which is what tapping it does. Copied wins over both for its beat and
+          then eases into whichever the row has become. */}
       <div
         {...swipe.handlers}
         style={{
@@ -703,7 +710,11 @@ function PromptRow({
         }}
         className={cn(
           'relative touch-pan-y',
-          copied ? 'bg-primary/6' : 'bg-card hover:bg-muted/40',
+          copied
+            ? 'bg-primary/6'
+            : prompt.done
+              ? 'bg-muted hover:bg-muted/70'
+              : 'bg-card hover:bg-muted/40',
         )}
       >
         {/* Every lane is 44px tall and the text's first line centres on 22px with
@@ -962,7 +973,12 @@ function ProjectShell({
       {composer && (
         // Phone: sits on the bottom edge, under the thumb. Desktop: lifted off
         // it — no safe area to hug there, and no thumb to reach with.
-        <div className="bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
+        //
+        // Half the bottom inset, not all of it. The full one is the whole
+        // home-indicator zone, which under a field that is meant to be on the
+        // edge leaves a band of nothing three times the 12px above it. Half
+        // clears the indicator bar, which is the only thing down there.
+        <div className="bg-background pb-[max(0.75rem,calc(env(safe-area-inset-bottom)/2))] md:pb-6">
           {/* Same cap as the queue above it, so the field's edges line up with
               the rows it is adding to. */}
           <div className="mx-auto max-w-3xl px-4 pt-3 md:px-6">{composer}</div>

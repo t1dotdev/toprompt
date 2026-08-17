@@ -204,7 +204,13 @@ export function NewProjectFab() {
         render={
           // Anchored to the pane rather than the viewport: `fixed` would leave
           // it hanging over the desktop pane's own create form as well.
-          <Button className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 size-14 rounded-full shadow-lg" />
+          //
+          // Half the bottom inset, not all of it. The full one is the whole
+          // home-indicator zone — twice the 16px this sits off the right edge,
+          // which reads as the button having drifted up the screen rather than
+          // as it sitting in the corner. Half clears the indicator bar itself,
+          // which is all there is down there to clear.
+          <Button className="absolute right-4 bottom-[max(1rem,calc(env(safe-area-inset-bottom)/2))] z-30 size-14 rounded-full shadow-lg" />
         }
       >
         <HugeiconsIcon icon={Add01Icon} className="size-6" />

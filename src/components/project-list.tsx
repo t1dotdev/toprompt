@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
   ArrowDown01Icon,
+  Cancel01Icon,
   Delete02Icon,
   Folder01Icon,
   MoreHorizontalIcon,
@@ -25,6 +26,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import {
   Empty,
   EmptyDescription,
@@ -87,12 +96,20 @@ export function NewProjectForm({
   submitLabel,
   autoFocus,
   className,
+  placeholder = 'New project',
+  onCreated,
 }: {
   /** Present ⇒ a tall pill with the labelled button sitting inside the field;
    *  absent ⇒ the compact input and icon button side by side. */
   submitLabel?: string
   autoFocus?: boolean
   className?: string
+  /** Overridden where the surface around the field already says "new project"
+   *  and the placeholder would only repeat it. */
+  placeholder?: string
+  /** Fires before the navigation, so a surface holding this form can close
+   *  itself rather than hanging over the queue it just opened. */
+  onCreated?: () => void
 }) {
   const navigate = useNavigate()
   const [saving, save] = useMutate()
@@ -108,8 +125,10 @@ export function NewProjectForm({
     save(() => createProjectFn({ data: { name: trimmed } }), {
       error: `Couldn't create “${trimmed}”.`,
       onError: () => setName(trimmed),
-      onSuccess: ({ id }) =>
-        navigate({ to: '/p/$projectId', params: { projectId: id } }),
+      onSuccess: ({ id }) => {
+        onCreated?.()
+        navigate({ to: '/p/$projectId', params: { projectId: id } })
+      },
     })
   }
 
@@ -125,7 +144,7 @@ export function NewProjectForm({
         ref={inputRef}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="New project"
+        placeholder={placeholder}
         aria-label="New project name"
         maxLength={200}
         autoComplete="off"
@@ -135,7 +154,12 @@ export function NewProjectForm({
         // types straight under the button.
         // The compact shape renders on the phone home pane only, so it is sized
         // for a thumb outright rather than growing into one below a breakpoint.
-        className={cn('h-12', submitLabel && 'h-13 pr-32 pl-5 md:text-base')}
+        // The tall pill grows 4px on a phone too: the button inside it is
+        // `inset-y-1.5`, so 56px of field is what makes it a 44px target.
+        className={cn(
+          'h-12',
+          submitLabel && 'h-14 pr-32 pl-5 md:h-13 md:text-base',
+        )}
       />
       <Button
         type="submit"
@@ -160,6 +184,61 @@ export function NewProjectForm({
         {submitLabel}
       </Button>
     </form>
+  )
+}
+
+/**
+ * The phone home screen's create action. The list is the page at that width, so
+ * naming a project happens in a sheet this raises rather than in a field parked
+ * above the list, spending a row of a small screen on a form that is wanted
+ * once a week. The button sits under the thumb; the field it opens sits above
+ * the keyboard that opens with it.
+ */
+export function NewProjectFab() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger
+        aria-label="New project"
+        render={
+          // Anchored to the pane rather than the viewport: `fixed` would leave
+          // it hanging over the desktop pane's own create form as well.
+          <Button className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 size-14 rounded-full shadow-lg" />
+        }
+      >
+        <HugeiconsIcon icon={Add01Icon} className="size-6" />
+      </SheetTrigger>
+
+      <SheetContent
+        side="bottom"
+        // The sheet's own close, at 44px rather than the built-in 32px one: the
+        // keyboard opens with this sheet and covers the backdrop, so the X is
+        // often the only dismissal left on screen.
+        showCloseButton={false}
+        className="rounded-t-4xl pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+      >
+        <SheetHeader className="flex-row items-center justify-between pb-4">
+          <SheetTitle className="text-lg">New project</SheetTitle>
+          <SheetClose
+            aria-label="Cancel"
+            render={<Button variant="ghost" size="icon" className="-mr-2 size-11" />}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} className="size-5" />
+          </SheetClose>
+        </SheetHeader>
+        <div className="px-6">
+          {/* Closes on the way out rather than on unmount, so the sheet is gone
+              before the queue it just created paints under it. */}
+          <NewProjectForm
+            autoFocus
+            submitLabel="Create"
+            placeholder="Project name"
+            onCreated={() => setOpen(false)}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 

@@ -36,9 +36,17 @@ function AuthedLayout() {
   // so the sidebar and the page next to it scroll independently instead of
   // dragging one long document. 18rem because a project row carries a drag
   // handle and an actions button either side of its name.
+  //
+  // fixed, because h-dvh alone is a promise the browser does not always keep —
+  // a phone mid-toolbar-animation, a soft keyboard, anything that leaves the
+  // shell taller than the viewport hands the scroll back to the document. That
+  // is not a cosmetic difference: SidebarInset clips its overflow, and a
+  // `sticky` topbar inside a clipped box sticks to the box, so the moment the
+  // document is what scrolls, the topbar scrolls away with it. Out of flow
+  // there is nothing left for the document to scroll.
   return (
     <SidebarProvider
-      className="h-dvh"
+      className="fixed inset-0 h-dvh"
       style={{ '--sidebar-width': '18rem' } as React.CSSProperties}
     >
       <ProjectSidebar projects={projects} user={user} />

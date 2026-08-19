@@ -1,4 +1,6 @@
 import { Link, createFileRoute, useLoaderData } from '@tanstack/react-router'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Folder01Icon } from '@hugeicons/core-free-icons'
 import { AppHeader } from '@/components/app-header'
 import { Logo } from '@/components/logo'
 import {
@@ -9,6 +11,14 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle'
 import { UserMenu } from '@/components/user-menu'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 export const Route = createFileRoute('/_authed/')({
   head: () => ({ meta: [{ title: 'Projects · toprompt' }] }),
@@ -51,58 +61,61 @@ function Projects() {
           trigger, and this pane is one centred start moment with nothing to
           title. */}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
-        <div className="flex flex-1 flex-col items-center justify-center gap-8 overflow-y-auto px-6 py-10">
-          <div className="flex flex-col items-center text-center">
-            <Logo size={32} className="text-primary" />
-            <h2 className="mt-4 text-2xl font-bold tracking-tight">
-              {projects.length === 0
-                ? 'Start your first queue'
-                : 'Start a new queue'}
-            </h2>
-            <p className="mt-2 max-w-[38ch] text-balance text-sm text-muted-foreground">
-              {projects.length === 0
-                ? 'A project is one queue of prompts — usually one per codebase.'
-                : 'Name it and start stashing — or pick up where you left off.'}
-            </p>
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Folder01Icon} />
+              </EmptyMedia>
+              <EmptyTitle>
+                {projects.length === 0
+                  ? 'Start your first queue'
+                  : 'Start a new queue'}
+              </EmptyTitle>
+              <EmptyDescription>
+                {projects.length === 0
+                  ? 'A project is one queue of prompts — usually one per codebase.'
+                  : 'Name it and start stashing — or pick up where you left off.'}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent className="max-w-xl">
+              <NewProjectForm autoFocus className="w-full" />
 
-          <NewProjectForm
-            autoFocus
-            submitLabel="Create"
-            className="w-full max-w-xl"
-          />
-
-          {/* The sidebar lists everything; this answers the narrower question —
-              "the queue I was just in" — without a trip to the rail. Quiet
-              outline chips, not cards: they are links, and three of them should
-              weigh less than the form above. */}
-          {recent.length > 0 && (
-            <div className="flex flex-col items-center gap-3">
-              <span className="text-xs font-medium text-muted-foreground">
-                Jump back in
-              </span>
-              <div className="flex max-w-xl flex-wrap justify-center gap-2">
-                {recent.map((p) => (
-                  <Button
-                    key={p.id}
-                    variant="outline"
-                    size="sm"
-                    className="h-9 max-w-56"
-                    render={
-                      <Link to="/p/$projectId" params={{ projectId: p.id }} />
-                    }
-                  >
-                    <span className="truncate">{p.name}</span>
-                    {p.open > 0 && (
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {p.open}
-                      </span>
-                    )}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
+              {/* The sidebar lists everything; this answers the narrower
+                  question — "the queue I was just in" — without a trip to the
+                  rail. */}
+              {recent.length > 0 && (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Jump back in
+                  </span>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {recent.map((p) => (
+                      <Button
+                        key={p.id}
+                        variant="outline"
+                        size="sm"
+                        className="max-w-56"
+                        render={
+                          <Link
+                            to="/p/$projectId"
+                            params={{ projectId: p.id }}
+                          />
+                        }
+                      >
+                        <span className="truncate">{p.name}</span>
+                        {p.open > 0 && (
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {p.open}
+                          </span>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </EmptyContent>
+          </Empty>
         </div>
       </div>
     </>

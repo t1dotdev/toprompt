@@ -11,6 +11,7 @@ import {
   PencilEdit02Icon,
   PinIcon,
   PinOffIcon,
+  SentIcon,
 } from '@hugeicons/core-free-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { RenameField } from '@/components/rename-field'
@@ -41,7 +42,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -93,15 +98,11 @@ function applyProjectAction(
  * to name a project is to start filling it.
  */
 export function NewProjectForm({
-  submitLabel,
   autoFocus,
   className,
   placeholder = 'New project',
   onCreated,
 }: {
-  /** Present ⇒ a tall pill with the labelled button sitting inside the field;
-   *  absent ⇒ the compact input and icon button side by side. */
-  submitLabel?: string
   autoFocus?: boolean
   className?: string
   /** Overridden where the surface around the field already says "new project"
@@ -134,55 +135,37 @@ export function NewProjectForm({
 
   return (
     <form
-      className={cn(submitLabel ? 'relative' : 'flex gap-2', className)}
+      className={className}
       onSubmit={(e) => {
         e.preventDefault()
         create()
       }}
     >
-      <Input
-        ref={inputRef}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={placeholder}
-        aria-label="New project name"
-        maxLength={200}
-        autoComplete="off"
-        enterKeyHint="done"
-        autoFocus={autoFocus}
-        // pr-32 is the button's width plus its inset — without it a long name
-        // types straight under the button.
-        // The compact shape renders on the phone home pane only, so it is sized
-        // for a thumb outright rather than growing into one below a breakpoint.
-        // The tall pill grows 4px on a phone too: the button inside it is
-        // `inset-y-1.5`, so 56px of field is what makes it a 44px target.
-        className={cn(
-          'h-12',
-          submitLabel && 'h-14 pr-32 pl-5 md:h-13 md:text-base',
-        )}
-      />
-      <Button
-        type="submit"
-        size={submitLabel ? undefined : 'icon'}
-        className={cn(
-          'h-11',
-          submitLabel ? 'absolute inset-y-1.5 right-1.5 h-auto px-4' : 'size-12',
-        )}
-        disabled={!trimmed || saving}
-        aria-label={submitLabel ? undefined : 'Add project'}
-      >
-        {saving ? (
-          <Spinner />
-        ) : (
-          // Sized here rather than from the button, whose own
-          // `:not([class*='size-'])` rule outranks a plain `[&_svg]:` override.
-          <HugeiconsIcon
-            icon={Add01Icon}
-            className={submitLabel ? undefined : 'size-5'}
-          />
-        )}
-        {submitLabel}
-      </Button>
+      <InputGroup>
+        <InputGroupInput
+          ref={inputRef}
+          size="lg"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={placeholder}
+          aria-label="New project name"
+          maxLength={200}
+          autoComplete="off"
+          enterKeyHint="done"
+          autoFocus={autoFocus}
+        />
+        <InputGroupAddon align="inline-end">
+          <Button
+            type="submit"
+            size="icon-xs"
+            variant="ghost"
+            disabled={!trimmed || saving}
+            aria-label="Create project"
+          >
+            {saving ? <Spinner /> : <HugeiconsIcon icon={SentIcon} />}
+          </Button>
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   )
 }
@@ -238,7 +221,6 @@ export function NewProjectFab() {
               before the queue it just created paints under it. */}
           <NewProjectForm
             autoFocus
-            submitLabel="Create"
             placeholder="Project name"
             onCreated={() => setOpen(false)}
           />

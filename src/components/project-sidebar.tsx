@@ -126,7 +126,7 @@ export function ProjectSidebar({
       {/* pt-0 while collapsed: the header already paid 8px below the last icon,
           and a second one would break the rhythm at the seam. */}
       <SidebarContent className={collapsed ? 'p-2 pt-0' : 'p-2'}>
-        <ProjectList projects={projects} flat />
+        <ProjectList projects={projects} sidebar />
       </SidebarContent>
 
       {/* gap-2 collapsed: the rail keeps one 8px step between every icon, and

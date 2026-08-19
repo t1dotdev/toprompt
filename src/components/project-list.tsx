@@ -12,10 +12,13 @@ import {
   PinIcon,
   PinOffIcon,
   SentIcon,
+  Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { RenameField } from '@/components/rename-field'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +50,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from '@/components/ui/input-group'
+import { Separator } from '@/components/ui/separator'
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -238,13 +242,14 @@ export function NewProjectFab() {
  */
 export function ProjectList({
   projects: loaded,
-  flat,
+  sidebar,
 }: {
   projects: Array<ProjectSummary>
-  /** Sidebar rows: plain hoverable lines instead of outlined cards. The home
-   *  pane keeps the cards — it has no hover to lean on and the list is the
-   *  whole page there. */
-  flat?: boolean
+  /** The desktop switcher's copy: label-sized rows beside the page you are
+   *  working in, foldable groups, and a collapsed rail shape. Without it this
+   *  is the phone home screen, where the list *is* the page — and since that
+   *  pane is `md:hidden`, the two never render at the same width. */
+  sidebar?: boolean
 }) {
   const [, mutate] = useMutate()
   const navigate = useNavigate()
@@ -254,7 +259,7 @@ export function ProjectList({
   const { state, isMobile } = useSidebar()
   // Only the sidebar copy can be collapsed — the home pane renders below the
   // breakpoint, where the sidebar is a full-width sheet.
-  const collapsed = !!flat && state === 'collapsed' && !isMobile
+  const collapsed = !!sidebar && state === 'collapsed' && !isMobile
 
   const pinned = projects.filter((p) => p.pinned)
   const rest = projects.filter((p) => !p.pinned)
@@ -323,9 +328,11 @@ export function ProjectList({
       </>
     )
 
-  if (projects.length === 0)
-    return (
-      <Empty className="border">
+  if (projects.length === 0) {
+    const empty = (
+      // The rail draws its own hairline box; on the home pane the Card around
+      // this one supplies it, along with the rest of the kit's surface.
+      <Empty className={cn(sidebar && 'border')}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={Folder01Icon} />
@@ -337,11 +344,15 @@ export function ProjectList({
               corner rather than a field sitting above this message. */}
           <EmptyDescription>
             A project is one queue of prompts — usually one per codebase.
-            {!flat && ' Tap + to start your first.'}
+            {!sidebar && ' Tap + to start your first.'}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
+    // The home pane's projects live in a card; so does the message standing in
+    // for them, or the screen loses its one surface the moment it is empty.
+    return sidebar ? empty : <Card>{empty}</Card>
+  }
 
   function group(label: string, rows: Array<ProjectSummary>) {
     if (rows.length === 0) return null
@@ -356,13 +367,7 @@ export function ProjectList({
             // list-none plus the webkit rule drop the native triangle — the
             // chevron below is the marker. `flex` on the label already fights
             // summary's display, so the marker has to go explicitly.
-            // On the phone home pane these headings are the page's only
-            // structure, so they carry a readable size; in the sidebar they
-            // stay the quiet 12px label the rest of the rail is set in.
-            className={cn(
-              'group/label cursor-pointer list-none gap-1 select-none hover:text-sidebar-foreground [&::-webkit-details-marker]:hidden',
-              !flat && 'h-9 text-sm md:h-8 md:text-xs',
-            )}
+            className="group/label cursor-pointer list-none gap-1 select-none hover:text-sidebar-foreground [&::-webkit-details-marker]:hidden"
           >
             {label}
             {/* Points right while folded, down while open. Folded it stays on
@@ -377,17 +382,9 @@ export function ProjectList({
             />
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* gap-2, not the menu default gap-1: outlined rows carry their own
-                border, and 4px between two of them reads as a squeeze. Flat rows
-                have no border to crowd, so the default gap is right. */}
-            <SidebarMenu className={cn(!flat && 'gap-2')}>
+            <SidebarMenu>
               {rows.map((p) => (
-                <ProjectRow
-                  key={p.id}
-                  project={p}
-                  flat={flat}
-                  {...handlers(p)}
-                />
+                <ProjectRow key={p.id} project={p} {...handlers(p)} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -439,6 +436,60 @@ export function ProjectList({
       </SidebarMenuItem>
     )
   }
+
+  /**
+   * The phone home screen's section. No fold here: in the sidebar a group
+   * competes with the page beside it for height, but on the home screen the
+   * list is the only thing there — and the heading's chevron is revealed on
+   * hover, so on a touch screen folding the whole page away is a control you
+   * cannot see until after you have hit it.
+   *
+   * The heading itself only appears once there is a second section to tell it
+   * apart from. One list under a bar reading "Projects", under a bar reading
+   * "toprompt", is a label for something nothing else could be.
+   */
+  function homeGroup(label: string, rows: Array<ProjectSummary>) {
+    if (rows.length === 0) return null
+    return (
+      <section>
+        {/* Outside the frame, not in its CardFrameHeader: the frame is the
+            <ul>, and a heading inside it would be a non-<li> child of a list.
+            px-1 sets it just inside the card's edge, the way a grouped list
+            titles the block under it. */}
+        {pinned.length > 0 && (
+          <h2 className="px-1 pb-2 text-sm font-medium text-muted-foreground">
+            {label}
+          </h2>
+        )}
+        {/* One Card holding the whole run, rather than CardFrame holding one
+            Card each: the frame keeps every panel's own 14px corners, so four
+            projects come out as four rounded objects to consider instead of one
+            list to pick from. A single card with Separator seams is the same
+            kit parts saying the thing this screen means.
+
+            overflow-hidden so the first and last rows' press tint stops at the
+            card's radius instead of squaring off its corners. */}
+        <Card className="overflow-hidden" render={<ul />}>
+          {rows.map((p, i) => (
+            <HomeRow
+              key={p.id}
+              project={p}
+              seam={i > 0}
+              {...handlers(p)}
+            />
+          ))}
+        </Card>
+      </section>
+    )
+  }
+
+  if (!sidebar)
+    return (
+      <div className="flex flex-col gap-6">
+        {homeGroup('Pinned', pinned)}
+        {homeGroup('Projects', rest)}
+      </div>
+    )
 
   return (
     <div className="flex flex-col gap-4">
@@ -568,18 +619,38 @@ function RailRow({
 const rowActionClass =
   'top-1/2! size-9 -translate-y-1/2 text-sidebar-foreground/60 after:hidden hover:bg-transparent hover:text-sidebar-accent-foreground md:size-5 [&>svg]:size-5 md:[&>svg]:size-4 md:group-focus-within/menu-item:opacity-0 md:group-hover/menu-item:opacity-100! md:group-has-[:focus-visible]/menu-item:opacity-100'
 
-function ProjectRow({
+/**
+ * One project on the phone home screen — a row inside the section's Card, not a
+ * card of its own.
+ *
+ * The row carries exactly what the screen is for — which queue, and how much is
+ * still waiting in it. The count is a trailing badge rather than a second line
+ * of prose, because the question here is "which of these has work in it", and
+ * that is a column you compare down, not four sentences you read one at a time.
+ * Everything the sidebar row also carries — a leading folder, a pin button of
+ * its own — is chrome that only competes with it.
+ *
+ * The three writes live behind one ⋯, the same control the queue's own topbar
+ * uses for the same three things. A permanently visible pin *and* ⋯ on every
+ * row spent a quarter of a phone's width on actions wanted about once a week,
+ * and put a 36px destructive-menu trigger under the thumb that was reaching to
+ * open the project.
+ */
+function HomeRow({
   project,
   onDelete,
   onRename,
   onTogglePin,
-  flat,
+  seam,
 }: {
   project: ProjectSummary
   onDelete: () => void
   onRename: (name: string) => void
   onTogglePin: () => void
-  flat?: boolean
+  /** Every row but the first draws the hairline above it. Carried by the row
+   *  rather than sat between rows, because the card renders a <ul> and a
+   *  separator is not an <li>. */
+  seam?: boolean
 }) {
   // The menu can't own the dialog: Base UI unmounts the menu popup on close,
   // which would take a dialog rendered inside it down with it.
@@ -588,13 +659,141 @@ function ProjectRow({
   // Held here rather than inside the field: the ⋯ menu hands focus to it on
   // close, and by then the field it opened is already mounted.
   const renameRef = useRef<HTMLInputElement>(null)
-  const done = project.total - project.open
-  const summary =
-    project.total === 0
-      ? 'No prompts yet'
-      : project.open === 0
-        ? `All ${project.total} done`
-        : `${project.open} waiting${done ? ` · ${done} done` : ''}`
+
+  // Inset to where the names start, so the seams read as breaks in one column
+  // of text rather than as bands stacked on each other.
+  const separator = seam ? <Separator className="ml-4 w-auto" /> : null
+
+  if (renaming)
+    return (
+      // p-1.5 around a 44px field is the 56px the row it replaces was, so the
+      // rows under it do not shift while one is being edited.
+      <li>
+        {separator}
+        <div className="p-1.5">
+          <RenameField
+            ref={renameRef}
+            name={project.name}
+            onRename={onRename}
+            onClose={() => setRenaming(false)}
+            className="h-11 text-base"
+          />
+        </div>
+      </li>
+    )
+
+  return (
+    <li className="relative">
+      {separator}
+      <Link
+        to="/p/$projectId"
+        params={{ projectId: project.id }}
+        // pr-16 is the ⋯'s lane plus enough air that the count reads as the
+        // row's own rather than as a label on the button. active:, not hover: —
+        // this row only ever renders on a touch screen, and the page suppresses
+        // the browser's own tap highlight, so without this a tap gives no
+        // feedback at all while the queue loads.
+        className="flex min-h-14 items-center gap-3 px-4 py-2 pr-16 transition-colors active:bg-accent"
+      >
+        <span className="min-w-0 flex-1 truncate text-base font-medium">
+          {project.name}
+        </span>
+        {/* A badge, not a bare numeral: the count is the one thing on this
+            screen that is a value rather than a label, and the kit's chip is
+            what says so. Secondary rather than the default fill — every row
+            carries one, and a column of primary-coloured pills would out-shout
+            the names they belong to. */}
+        {project.open > 0 ? (
+          <Badge variant="secondary" className="tabular-nums">
+            {project.open}
+            <span className="sr-only">
+              {project.open === 1 ? ' prompt waiting' : ' prompts waiting'}
+            </span>
+          </Badge>
+        ) : project.total > 0 ? (
+          <>
+            {/* No badge for a finished queue: a chip is for a quantity, and
+                this is the absence of one. */}
+            <HugeiconsIcon
+              icon={Tick02Icon}
+              className="size-4 shrink-0 text-muted-foreground/70"
+              aria-hidden
+            />
+            <span className="sr-only">All done</span>
+          </>
+        ) : null}
+      </Link>
+
+      {/* A sibling of the link, not a child: a child would make every press on
+          it navigate. size-11 is the queue topbar's ⋯ — the same control for
+          the same three actions, at the same size, on both screens. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Actions for ${project.name}`}
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-muted-foreground"
+            />
+          }
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-5" />
+        </DropdownMenuTrigger>
+        {/* Hangs off the right edge it sits on, rather than off the screen. */}
+        <DropdownMenuContent align="end" finalFocus={renameRef}>
+          <DropdownMenuItem onClick={onTogglePin}>
+            <HugeiconsIcon icon={project.pinned ? PinOffIcon : PinIcon} />
+            {project.pinned ? 'Unpin' : 'Pin to top'}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setRenaming(true)}>
+            <HugeiconsIcon icon={PencilEdit02Icon} />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setConfirming(true)}
+          >
+            <HugeiconsIcon icon={Delete02Icon} />
+            Delete project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Delete “${project.name}”?`}
+        description={
+          project.total === 0
+            ? 'This project is empty. Deleting it cannot be undone.'
+            : `Its ${project.total} ${project.total === 1 ? 'prompt is' : 'prompts are'} deleted with it. This cannot be undone.`
+        }
+        confirmLabel="Delete project"
+        onConfirm={onDelete}
+      />
+    </li>
+  )
+}
+
+function ProjectRow({
+  project,
+  onDelete,
+  onRename,
+  onTogglePin,
+}: {
+  project: ProjectSummary
+  onDelete: () => void
+  onRename: (name: string) => void
+  onTogglePin: () => void
+}) {
+  // The menu can't own the dialog: Base UI unmounts the menu popup on close,
+  // which would take a dialog rendered inside it down with it.
+  const [confirming, setConfirming] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  // Held here rather than inside the field: the ⋯ menu hands focus to it on
+  // close, and by then the field it opened is already mounted.
+  const renameRef = useRef<HTMLInputElement>(null)
 
   if (renaming)
     return (
@@ -607,10 +806,7 @@ function ProjectRow({
           // Sits in the row's own footprint so the name does not jump when the
           // field takes over: same height, radius and text inset as the button
           // it replaces.
-          className={cn(
-            'rounded-lg px-3 text-sm',
-            flat ? 'h-9' : 'h-16 md:h-14',
-          )}
+          className="h-9 rounded-lg px-3 text-sm"
         />
       </SidebarMenuItem>
     )
@@ -618,8 +814,6 @@ function ProjectRow({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        size={flat ? 'default' : 'lg'}
-        variant={flat ? 'default' : 'outline'}
         // pr-22! is both actions' lane plus a gap. Below md the actions are
         // always on and 36px wide, so 5.5rem is always reserved; from md they
         // shrink to 20px and only appear on hover/keyboard-focus/open-menu, so
@@ -634,47 +828,26 @@ function ProjectRow({
         // keeps the whole row lit while the pointer is on an action, and
         // has-[[data-popup-open]] holds that once the menu takes the pointer
         // away.
-        className={cn(
-          'pr-22! group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-has-[[data-popup-open]]/menu-item:bg-sidebar-accent data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:pr-3! md:group-hover/menu-item:pr-15! md:group-has-[:focus-visible]/menu-item:pr-15! md:group-has-[[data-popup-open]]/menu-item:pr-15!',
-          // The card carries two lines of type at reading sizes on a phone,
-          // which the sidebar's 56px row cannot hold.
-          !flat && 'h-16 md:h-14',
-        )}
+        className="pr-22! group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-has-[[data-popup-open]]/menu-item:bg-sidebar-accent data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:pr-3! md:group-hover/menu-item:pr-15! md:group-has-[:focus-visible]/menu-item:pr-15! md:group-has-[[data-popup-open]]/menu-item:pr-15!"
         render={<Link to="/p/$projectId" params={{ projectId: project.id }} />}
       >
-        {flat ? (
-          <>
-            {/* Every row leads with a glyph — the sidebar is a list of one kind
-                of thing, and a leading icon gives the names a common left edge
-                to hang off. Pinned rows swap the folder for the pin, so they
-                still read as pinned once the group heading has scrolled off.
-                The menu button already sizes and spaces any svg it holds. */}
-            <HugeiconsIcon
-              icon={project.pinned ? PinIcon : Folder01Icon}
-              className="text-sidebar-foreground/60"
-            />
-            <span className="truncate">{project.name}</span>
-            {/* Trails the name rather than sitting at the row's edge, where it
-                collided with the hover action. shrink-0 so a long name
-                ellipsises into the count instead of pushing it out of view;
-                -ml-1 pulls it in from the row's gap-2. */}
-            {project.open > 0 && (
-              <span className="-ml-1 shrink-0 text-xs tabular-nums text-sidebar-foreground/50">
-                · {project.open}
-              </span>
-            )}
-          </>
-        ) : (
-          // On a phone this list *is* the home screen, so it is set at reading
-          // sizes; in the sidebar it is a switcher beside the page you are
-          // working in, and stays at label sizes.
-          <span className="grid min-w-0 flex-1 gap-0.5 leading-tight md:gap-0">
-            <span className="truncate text-base font-medium md:text-sm">
-              {project.name}
-            </span>
-            <span className="truncate text-sm text-muted-foreground md:text-xs">
-              {summary}
-            </span>
+        {/* Every row leads with a glyph — the sidebar is a list of one kind of
+            thing, and a leading icon gives the names a common left edge to hang
+            off. Pinned rows swap the folder for the pin, so they still read as
+            pinned once the group heading has scrolled off. The menu button
+            already sizes and spaces any svg it holds. */}
+        <HugeiconsIcon
+          icon={project.pinned ? PinIcon : Folder01Icon}
+          className="text-sidebar-foreground/60"
+        />
+        <span className="truncate">{project.name}</span>
+        {/* Trails the name rather than sitting at the row's edge, where it
+            collided with the hover action. shrink-0 so a long name ellipsises
+            into the count instead of pushing it out of view; -ml-1 pulls it in
+            from the row's gap-2. */}
+        {project.open > 0 && (
+          <span className="-ml-1 shrink-0 text-xs tabular-nums text-sidebar-foreground/50">
+            · {project.open}
           </span>
         )}
       </SidebarMenuButton>

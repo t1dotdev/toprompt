@@ -50,7 +50,7 @@ function Projects() {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* pb-24 is the button's lane: the last row in the list has to be
               readable and tappable with it sitting in the corner. */}
-          <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-4 pb-24">
+          <div className="mx-auto max-w-md px-4 pt-4 pb-24">
             <ProjectList projects={projects} />
           </div>
         </div>

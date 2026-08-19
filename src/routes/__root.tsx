@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { Toaster } from 'sonner'
+import { ToastProvider } from '@/components/ui/toast'
 
 import appCss from '../styles.css?url'
 
@@ -142,35 +141,6 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 })
 
-/**
- * Sonner does its own `prefers-color-scheme` lookup, so leaving it on "system"
- * would keep painting dark toasts over a manually-lightened app. Watching the
- * class instead of taking the theme as a prop means this stays correct whoever
- * changed it — the toggle or the OS.
- */
-function ThemedToaster() {
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
-
-  useEffect(() => {
-    const read = () =>
-      setTheme(
-        document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-      )
-    read()
-    const observer = new MutationObserver(read)
-    observer.observe(document.documentElement, { attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <Toaster
-      position="bottom-center"
-      theme={theme}
-      mobileOffset="calc(1rem + env(safe-area-inset-bottom))"
-    />
-  )
-}
-
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     // The theme script adds a class before hydration, so the server and client
@@ -198,9 +168,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: swScript }} />
       </head>
       <body>
-        {children}
-        {/* Bottom-center keeps the Undo action inside thumb reach on a phone. */}
-        <ThemedToaster />
+        {/* Bottom-center keeps the Undo action inside thumb reach on a phone.
+            The toast styles read the app's CSS tokens, so it follows the .dark
+            class with no theme plumbing. */}
+        <ToastProvider position="bottom-center">{children}</ToastProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

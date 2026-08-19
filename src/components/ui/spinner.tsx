@@ -1,16 +1,18 @@
-import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Loading03Icon } from "@hugeicons/core-free-icons"
+import { Loader2Icon } from "lucide-react";
+import type React from "react";
+import { cn } from "@/lib/utils";
 
-// `strokeWidth` is widened to `string | number` on SVGProps, but HugeiconsIcon
-// only accepts a number — omit it so the spread type-checks.
-function Spinner({
+export function Spinner({
   className,
   ...props
-}: Omit<React.ComponentProps<"svg">, "strokeWidth">) {
+}: React.ComponentProps<typeof Loader2Icon>): React.ReactElement {
   return (
-    <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} data-slot="spinner" role="status" aria-label="Loading" className={cn("size-4 animate-spin", className)} {...props} />
-  )
+    <Loader2Icon
+      aria-label="Loading"
+      className={cn("animate-spin", className)}
+      role="status"
+      data-slot="spinner"
+      {...props}
+    />
+  );
 }
-
-export { Spinner }

@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/menu'
 import { SidebarMenuButton } from '@/components/ui/sidebar'
 import { authClient } from '@/lib/auth-client'
 

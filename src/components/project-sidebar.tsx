@@ -70,7 +70,7 @@ export function ProjectSidebar({
           <div className="group/brand relative flex h-8 items-center justify-center">
             <Logo
               size={24}
-              className="transition-opacity group-hover/brand:opacity-0"
+              className="text-primary transition-opacity group-hover/brand:opacity-0"
             />
             {/* cursor-e-resize, not the button default: this slot is part of the
                 strip that widens on click, and one cursor across all of it says
@@ -83,7 +83,7 @@ export function ProjectSidebar({
              instead of the menu button's `[&_svg]:size-4`. */
           <div className="flex items-center gap-2 px-2 py-1">
             <Link to="/" className="flex min-w-0 flex-1 items-center gap-2">
-              <Logo size={28} />
+              <Logo size={28} className="text-primary" />
               <span className="truncate text-base font-bold tracking-tight">
                 toprompt
               </span>

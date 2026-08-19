@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import { toastManager } from '@/components/ui/toast'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Alert02Icon,
@@ -25,7 +25,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/menu'
 import {
   Empty,
   EmptyDescription,
@@ -151,14 +151,14 @@ function applyPromptAction(
 
 async function copyPrompt(text: string) {
   if (!navigator.clipboard) {
-    toast.error('Copying needs a secure (https) connection.')
+    toastManager.add({ title: 'Copying needs a secure (https) connection.', type: 'error' })
     return false
   }
   try {
     await navigator.clipboard.writeText(text)
     return true
   } catch {
-    toast.error("Couldn't copy — select the text and copy it manually.")
+    toastManager.add({ title: "Couldn't copy — select the text and copy it manually.", type: 'error' })
     return false
   }
 }
@@ -283,9 +283,9 @@ function ProjectView() {
     // this needs.
     navigator.vibrate?.(10)
     // Says both halves of what just happened — the checkbox ticking on its own
-    // is the surprising one. Sonner's own live region announces it, so the row
+    // is the surprising one. The toast's own live region announces it, so the row
     // does not carry a second one.
-    toast.success(mark ? 'Copied — marked done' : 'Copied to clipboard')
+    toastManager.add({ title: mark ? 'Copied — marked done' : 'Copied to clipboard', type: 'success' })
     setCopiedId(p.id)
     // Cleared first so copying a second prompt doesn't inherit the remainder of
     // the first one's window and blink off early.
@@ -301,10 +301,13 @@ function ProjectView() {
     })
     // Undo rather than a confirmation dialog: deleting is routine here, and a
     // prompt is long enough to be genuinely painful to retype.
-    toast('Prompt deleted', {
-      action: {
-        label: 'Undo',
-        onClick: () =>
+    const toastId = toastManager.add({
+      title: 'Prompt deleted',
+      actionProps: {
+        children: 'Undo',
+        onClick: () => {
+          // Base UI leaves the toast up after its action runs.
+          toastManager.close(toastId)
           mutate(
             () =>
               restorePromptFn({
@@ -317,7 +320,8 @@ function ProjectView() {
                 },
               }),
             { error: "Couldn't restore that prompt." },
-          ),
+          )
+        },
       },
     })
   }
@@ -615,7 +619,7 @@ function PromptRow({
         className={cn(
           'h-11',
           copied
-            ? 'w-auto gap-1.5 px-3 text-foreground'
+            ? 'w-auto gap-1.5 px-3 text-primary hover:text-primary'
             : 'w-11 text-muted-foreground',
         )}
         onClick={onCopy}
@@ -674,7 +678,7 @@ function PromptRow({
         aria-hidden
         className="absolute inset-0 flex text-sm font-medium select-none"
       >
-        <span className="flex flex-1 items-center gap-2 bg-primary/10 px-5">
+        <span className="flex flex-1 items-center gap-2 bg-primary/10 px-5 text-primary">
           <HugeiconsIcon icon={Copy01Icon} className="size-5" />
           Copy
         </span>
@@ -699,22 +703,26 @@ function PromptRow({
         {...swipe.handlers}
         style={{
           transform: `translate3d(${swipe.dx}px, 0, 0)`,
-          // Written here rather than as classes because two properties want
-          // two durations, and `transition-*` utilities would merge into one.
           // Follows the finger with no easing at all, eases on the way home.
           // The reduced-motion override in the stylesheet is `!important`, so
           // it still outranks this.
           transition: swipe.dragging
-            ? 'background-color 300ms'
-            : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 300ms',
+            ? undefined
+            : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
+        // The state tints are alpha washes (coss's muted is 4% ink, copied is
+        // 6% primary), so they ride on a ::before over an opaque bg-background
+        // — painted directly on this layer they'd be see-through, and the
+        // swipe backdrop underneath would show at rest.
         className={cn(
-          'relative touch-pan-y',
+          // -z-10 tucks the tint between this layer's own background and its
+          // content (the transform already makes this a stacking context).
+          'relative touch-pan-y bg-background before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:transition-colors before:duration-300',
           copied
-            ? 'bg-primary/6'
+            ? 'before:bg-primary/6'
             : prompt.done
-              ? 'bg-muted hover:bg-muted/70'
-              : 'bg-card hover:bg-muted/40',
+              ? 'before:bg-muted hover:before:bg-muted/70'
+              : 'before:bg-card hover:before:bg-muted/40',
         )}
       >
         {/* Every lane is 44px tall and the text's first line centres on 22px with
@@ -942,7 +950,6 @@ function ProjectShell({
           size="icon"
           className="-ml-2 size-11 shrink-0 md:hidden"
           aria-label="Back to projects"
-          nativeButton={false}
           render={<Link to="/" />}
         >
           {/* Phone-only button, so no `md` half to it: back is the one control
@@ -1053,7 +1060,6 @@ function ProjectNotFound() {
         <Button
           variant="outline"
           className="h-11"
-          nativeButton={false}
           render={<Link to="/" />}
         >
           Back to projects

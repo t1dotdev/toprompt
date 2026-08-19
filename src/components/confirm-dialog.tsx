@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
+  AlertDialogClose,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -10,6 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 
 /**
  * Single voice for actions that can't be undone. Replaces `window.confirm`,
@@ -45,7 +45,7 @@ export function ConfirmDialog({
       {/* Type and targets grow on a phone, the 320px box does not: an alert is
           the one surface a narrow measure suits, and both answers still fit
           side by side at 44px tall. */}
-      <AlertDialogContent size="sm">
+      <AlertDialogContent className="sm:max-w-xs">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-xl md:text-lg">
             {title}
@@ -55,8 +55,14 @@ export function ConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel className="h-11 md:h-9">Cancel</AlertDialogCancel>
-          <AlertDialogAction
+          <AlertDialogClose
+            render={
+              <Button variant="outline" className="h-11 md:h-9">
+                Cancel
+              </Button>
+            }
+          />
+          <Button
             variant="destructive"
             className="h-11 md:h-9"
             onClick={() => {
@@ -65,7 +71,7 @@ export function ConfirmDialog({
             }}
           >
             {confirmLabel}
-          </AlertDialogAction>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

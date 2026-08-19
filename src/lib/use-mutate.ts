@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import { toastManager } from '@/components/ui/toast'
 
 type MutateOptions<T> = {
   /** Shown as a toast when the server function rejects. */
@@ -43,7 +43,7 @@ export function useMutate() {
       try {
         options.onSuccess?.(await request)
       } catch {
-        toast.error(options.error)
+        toastManager.add({ title: options.error, type: 'error' })
         options.onError?.()
       }
       // Refetch either way: on success to pick up the real row, on failure to

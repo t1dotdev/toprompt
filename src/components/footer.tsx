@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { GITHUB_URL } from '@/components/header'
+import { GITHUB_URL } from '@/lib/site'
 import { GithubIcon } from '@/components/icons/github-icon'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'

@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowRight02Icon, SourceCodeIcon } from '@hugeicons/core-free-icons'
-import { GITHUB_URL } from '@/components/header'
+import { GITHUB_URL } from '@/lib/site'
 import { QueuePreview } from '@/components/queue-preview'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

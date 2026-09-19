@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowRight02Icon } from '@hugeicons/core-free-icons'
 import { FullWidthDivider } from '@/components/full-width-divider'
-import { GITHUB_URL } from '@/components/header'
+import { GITHUB_URL } from '@/lib/site'
 import { Button } from '@/components/ui/button'
 
 export function CallToAction() {

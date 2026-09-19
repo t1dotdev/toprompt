@@ -17,7 +17,11 @@ export const Route = createFileRoute('/')({
 
 function Landing() {
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-x-hidden">
+    // clip, not hidden: `overflow-x: hidden` computes `overflow-y` to `auto`,
+    // which makes this div the header's scroll container — and since the
+    // document is what actually scrolls, the sticky header never engages.
+    // `clip` trims the full-bleed dividers without creating a scroll port.
+    <div className="relative flex min-h-dvh flex-col overflow-x-clip">
       <Header />
       <main className="flex-1">
         <HeroSection />

@@ -22,6 +22,12 @@
   "menuColor": "default",
   "menuAccent": "subtle",
   "registries": {
-    "@coss": "https://coss.com/ui/r/{name}.json"
+    "@coss": "https://coss.com/ui/r/{name}.json",
+    "@efferd": {
+      "url": "https://efferd.com/r/{style}/{name}.json",
+      "headers": {
+        "Authorization": "Bearer ${EFFERD_REGISTRY_TOKEN}"
+      }
+    }
   }
 }

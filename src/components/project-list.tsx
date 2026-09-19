@@ -294,7 +294,7 @@ export function ProjectList({
           // should leave them where they are.
           onSuccess: () => {
             if (matchRoute({ to: '/p/$projectId', params: { projectId: p.id } }))
-              navigate({ to: '/' })
+              navigate({ to: '/app' })
           },
         }),
     }

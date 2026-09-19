@@ -336,7 +336,7 @@ function ProjectView() {
               error: `Couldn't delete “${project.name}”.`,
               // Leave before the refetch: the queue on screen is the one just
               // deleted, and its loader answers not found.
-              onSuccess: () => navigate({ to: "/" }),
+              onSuccess: () => navigate({ to: "/app" }),
             })
           }
         />
@@ -606,7 +606,7 @@ function ProjectShell({
           size="icon"
           className="-ml-2 size-11 shrink-0 md:hidden"
           aria-label="Back to projects"
-          render={<Link to="/" />}
+          render={<Link to="/app" />}
         >
           {/* Phone-only button, so no `md` half to it: back is the one control
               you aim at without looking. */}
@@ -703,7 +703,7 @@ function ProjectNotFound() {
             It was deleted, or the link belongs to another account.
           </EmptyDescription>
         </EmptyHeader>
-        <Button variant="outline" className="h-11" render={<Link to="/" />}>
+        <Button variant="outline" className="h-11" render={<Link to="/app" />}>
           Back to projects
         </Button>
       </Empty>

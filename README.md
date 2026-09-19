@@ -92,6 +92,7 @@ src/
 │   ├── auth.ts         # better-auth config
 │   └── fns.ts          # every server function — the entire backend
 ├── routes/
+│   ├── index.tsx       # public landing page (signed-in visitors go to /app)
 │   ├── _authed/        # project list + prompt queue (auth-gated)
 │   ├── login.tsx
 │   └── api/auth/$.ts   # better-auth handler

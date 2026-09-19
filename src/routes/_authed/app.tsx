@@ -20,7 +20,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 
-export const Route = createFileRoute('/_authed/')({
+export const Route = createFileRoute('/_authed/app')({
   head: () => ({ meta: [{ title: 'Projects · toprompt' }] }),
   component: Projects,
 })

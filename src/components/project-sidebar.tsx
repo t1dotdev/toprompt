@@ -82,7 +82,7 @@ export function ProjectSidebar({
              is a plain link — outside the menu the logo also keeps its own size
              instead of the menu button's `[&_svg]:size-4`. */
           <div className="flex items-center gap-2 px-2 py-1">
-            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2">
+            <Link to="/app" className="flex min-w-0 flex-1 items-center gap-2">
               <Logo size={28} className="text-primary" />
               <span className="truncate text-base font-bold tracking-tight">
                 toprompt
@@ -110,9 +110,9 @@ export function ProjectSidebar({
                 every route, so the link would read as active inside a project
                 too. */}
             <SidebarMenuButton
-              isActive={!!matchRoute({ to: '/' })}
+              isActive={!!matchRoute({ to: '/app' })}
               tooltip="New project"
-              render={<Link to="/" />}
+              render={<Link to="/app" />}
             >
               <HugeiconsIcon icon={Add01Icon} />
               <span>New project</span>

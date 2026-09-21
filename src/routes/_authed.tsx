@@ -8,6 +8,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, RefreshIcon } from '@hugeicons/core-free-icons'
 import { ProjectSidebar } from '@/components/project-sidebar'
+import { SearchPalette } from '@/components/search-palette'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -93,6 +94,9 @@ function AuthedLayout() {
       <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
         <Outlet />
       </SidebarInset>
+      {/* Up here rather than in a page: ⌘K has to answer from every authed
+          route, and the project list it searches is this layout's own. */}
+      <SearchPalette projects={projects} />
     </SidebarProvider>
   )
 }

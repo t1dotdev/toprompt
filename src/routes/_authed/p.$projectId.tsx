@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  createFileRoute,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { toastManager } from "@/components/ui/toast";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -149,6 +154,7 @@ function ProjectView() {
   const renameRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const seen = useRef({ id: "", count: -1 });
+  const hash = useLocation({ select: (location) => location.hash });
 
   const trimmed = text.trim();
 
@@ -175,16 +181,30 @@ function ProjectView() {
       if (stick) el.scrollTop = el.scrollHeight;
     };
 
-    pin();
+    // A search hit outranks the newest prompt: the palette sends you here with
+    // the prompt's id as the hash, to read that row and not the bottom of the
+    // queue. Done by hand because the router's own hash scroll rides on the
+    // scroll restoration this route opts out of. The mark is an attribute set
+    // from in here rather than a class from render — the server never sees a
+    // hash, so a class would be a hydration mismatch on every reload of one.
+    // Reading the position straight back releases the pin, instead of waiting
+    // on a scroll event to arrive before the observer's first callback does.
+    const hit = hash ? document.getElementById(hash) : null;
+    if (hit) {
+      hit.scrollIntoView({ block: "center" });
+      hit.dataset.hit = "";
+      onScroll();
+    } else pin();
     el.addEventListener("scroll", onScroll, { passive: true });
     const observer = new ResizeObserver(pin);
     observer.observe(content);
 
     return () => {
+      delete hit?.dataset.hit;
       el.removeEventListener("scroll", onScroll);
       observer.disconnect();
     };
-  }, [project.id]);
+  }, [project.id, hash]);
 
   // Follows every prompt added after that, including once the reader has
   // scrolled away and released the observer above — you wrote it, you should
@@ -439,8 +459,10 @@ function PromptRow({
 
   return (
     <li
+      // What a search hit's hash points at — see the scroll effect above.
+      id={prompt.id}
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-3",
+        "flex items-start gap-3 rounded-xl border p-3 data-hit:border-ring data-hit:ring-[3px] data-hit:ring-ring/24",
         prompt.done ? "bg-muted/40" : "bg-card",
         isPending && "opacity-64",
       )}

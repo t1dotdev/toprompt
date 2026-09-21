@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useLoaderData } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Folder01Icon } from '@hugeicons/core-free-icons'
+import { Folder01Icon, Search01Icon } from '@hugeicons/core-free-icons'
 import { AppHeader } from '@/components/app-header'
 import { Logo } from '@/components/logo'
 import {
@@ -8,9 +8,11 @@ import {
   NewProjectForm,
   ProjectList,
 } from '@/components/project-list'
+import { searchHandle } from '@/components/search-palette'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { UserMenu } from '@/components/user-menu'
 import { Button } from '@/components/ui/button'
+import { CommandDialogTrigger } from '@/components/ui/command'
 import {
   Empty,
   EmptyContent,
@@ -44,6 +46,20 @@ function Projects() {
             <Logo size={20} className="text-primary" />
             toprompt
           </h1>
+          {/* A phone has no ⌘K, and no sidebar row to stand in for it. */}
+          <CommandDialogTrigger
+            handle={searchHandle}
+            aria-label="Search"
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11 text-muted-foreground"
+              />
+            }
+          >
+            <HugeiconsIcon icon={Search01Icon} className="size-5" />
+          </CommandDialogTrigger>
           <ThemeToggle />
           <UserMenu user={user} />
         </AppHeader>

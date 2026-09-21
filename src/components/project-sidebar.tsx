@@ -1,10 +1,12 @@
 import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, Search01Icon } from '@hugeicons/core-free-icons'
 import { Logo } from '@/components/logo'
 import { ProjectList } from '@/components/project-list'
+import { searchHandle } from '@/components/search-palette'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { UserMenu } from '@/components/user-menu'
+import { CommandDialogTrigger } from '@/components/ui/command'
 import {
   Sidebar,
   SidebarContent,
@@ -116,6 +118,22 @@ export function ProjectSidebar({
             >
               <HugeiconsIcon icon={Add01Icon} />
               <span>New project</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {/* A detached trigger: the palette itself is mounted once by the
+              layout, and the handle is what ties this row to it. The shortcut
+              is spelled out here because a key nobody was told about is a
+              feature nobody has. */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Search ⌘K"
+              render={<CommandDialogTrigger handle={searchHandle} />}
+            >
+              <HugeiconsIcon icon={Search01Icon} />
+              <span className="flex-1">Search</span>
+              <kbd className="font-sans text-xs text-sidebar-foreground/50">
+                ⌘K
+              </kbd>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

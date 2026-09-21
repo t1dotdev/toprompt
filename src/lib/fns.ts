@@ -120,6 +120,27 @@ export const getProjectFn = createServerFn({ method: 'GET' })
     return { project: proj, prompts }
   })
 
+// Everything the ⌘K palette searches, in one trip: matching happens in the
+// browser, so results land on the keystroke instead of on a round trip. Newest
+// first, because the palette caps what it shows and a recent prompt is the
+// likelier one to be looked for.
+// ponytail: ships the user's whole history on every open; move to a
+// server-side ilike + limit once that payload is big enough to feel.
+export const listPromptsFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const user = await requireUser()
+  return db
+    .select({
+      id: prompt.id,
+      projectId: prompt.projectId,
+      text: prompt.text,
+      done: prompt.done,
+    })
+    .from(prompt)
+    .innerJoin(project, eq(project.id, prompt.projectId))
+    .where(eq(project.userId, user.id))
+    .orderBy(desc(prompt.createdAt), desc(prompt.id))
+})
+
 // ownership of prompts is enforced via the project subquery in the WHERE clause
 const ownedProjectIds = (userId: string) =>
   db.select({ id: project.id }).from(project).where(eq(project.userId, userId))

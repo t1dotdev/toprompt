@@ -143,6 +143,22 @@ export function SearchPalette({ projects }: { projects: Array<ProjectSummary> })
           <CommandInput
             placeholder="Search projects and prompts…"
             aria-label="Search projects and prompts"
+            onKeyDown={(e) => {
+              // Ctrl+N / Ctrl+P step through the results like ↓ / ↑, as in
+              // Emacs and most palettes. Base UI only navigates on the arrows,
+              // so the chord is replayed as one. Left alone mid-IME, where it
+              // can belong to the candidate window.
+              const key = e.key.toLowerCase()
+              const arrow =
+                key === 'n' ? 'ArrowDown' : key === 'p' ? 'ArrowUp' : null
+              if (!arrow || !e.ctrlKey || e.nativeEvent.isComposing) return
+              // Otherwise macOS jumps the caret to either end, and Ctrl+P prints
+              // everywhere else.
+              e.preventDefault()
+              e.currentTarget.dispatchEvent(
+                new KeyboardEvent('keydown', { key: arrow, bubbles: true }),
+              )
+            }}
           />
           <CommandPanel>
             <CommandEmpty>Nothing matches “{query.trim()}”.</CommandEmpty>

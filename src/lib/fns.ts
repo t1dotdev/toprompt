@@ -184,6 +184,21 @@ export const togglePromptFn = createServerFn({ method: 'POST' })
     await touchProject(updated?.projectId)
   })
 
+export const editPromptFn = createServerFn({ method: 'POST' })
+  .validator((data: { id: string; text: string }) => ({
+    id: cleanText(data.id, 100),
+    text: cleanText(data.text, 10000),
+  }))
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    const [updated] = await db
+      .update(prompt)
+      .set({ text: data.text })
+      .where(and(eq(prompt.id, data.id), inArray(prompt.projectId, ownedProjectIds(user.id))))
+      .returning({ projectId: prompt.projectId })
+    await touchProject(updated?.projectId)
+  })
+
 export const deletePromptFn = createServerFn({ method: 'POST' })
   .validator((data: { id: string }) => ({ id: cleanText(data.id, 100) }))
   .handler(async ({ data }) => {

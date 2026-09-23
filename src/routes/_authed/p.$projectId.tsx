@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Link,
   createFileRoute,
@@ -49,6 +50,7 @@ import {
   createPromptFn,
   deleteProjectFn,
   deletePromptFn,
+  editPromptFn,
   getProjectFn,
   renameProjectFn,
   restorePromptFn,
@@ -87,6 +89,7 @@ const useIsomorphicLayoutEffect =
 type PromptAction =
   | { type: "add"; text: string; at: Date }
   | { type: "toggle"; id: string; done: boolean }
+  | { type: "edit"; id: string; text: string }
   | { type: "remove"; id: string };
 
 function applyPromptAction(
@@ -113,9 +116,23 @@ function applyPromptAction(
       return prompts.map((p) =>
         p.id === action.id ? { ...p, done: action.done } : p,
       );
+    case "edit":
+      return prompts.map((p) =>
+        p.id === action.id ? { ...p, text: action.text } : p,
+      );
     case "remove":
       return prompts.filter((p) => p.id !== action.id);
   }
+}
+
+/**
+ * Enter sends, Shift+Enter breaks the line — in the composer and in a row being
+ * edited alike. isComposing is the guard that matters: committing an IME
+ * candidate fires Enter too, and without it a Japanese or Thai draft submits
+ * half-typed.
+ */
+function isSend(e: React.KeyboardEvent) {
+  return e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing;
 }
 
 async function copyPrompt(text: string) {
@@ -276,6 +293,16 @@ function ProjectView() {
     if (mark) toggle(p, true);
   }
 
+  function edit(p: Prompt, text: string, restore: () => void) {
+    mutate(() => editPromptFn({ data: { id: p.id, text } }), {
+      error: "Couldn't save that edit.",
+      optimistic: () => addOptimistic({ type: "edit", id: p.id, text }),
+      // Reopens the row on what was typed, as create() hands the composer its
+      // draft back: a rewritten prompt is as painful to retype as a new one.
+      onError: restore,
+    });
+  }
+
   function remove(p: Prompt) {
     mutate(() => deletePromptFn({ data: { id: p.id } }), {
       error: "Couldn't delete that prompt.",
@@ -316,6 +343,7 @@ function ProjectView() {
         onSelect={() => select(p)}
         onCopy={() => copy(p)}
         onToggle={(checked) => toggle(p, checked)}
+        onEdit={(text, restore) => edit(p, text, restore)}
         onDelete={() => remove(p)}
       />
     ));
@@ -375,14 +403,7 @@ function ProjectView() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                // Enter sends, Shift+Enter breaks the line. isComposing is the
-                // guard that matters: committing an IME candidate fires Enter
-                // too, and without it a Japanese or Thai draft submits half-typed.
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
+                if (isSend(e)) {
                   e.preventDefault();
                   create();
                 }
@@ -442,6 +463,7 @@ function PromptRow({
   onSelect,
   onCopy,
   onToggle,
+  onEdit,
   onDelete,
 }: {
   prompt: Prompt;
@@ -449,13 +471,110 @@ function PromptRow({
   onSelect: () => void;
   onCopy: () => void;
   onToggle: (checked: boolean) => void;
+  /** `restore` puts the editor back on `text` — for when the save fails. */
+  onEdit: (text: string, restore: () => void) => void;
   onDelete: () => void;
 }) {
   const isPending = prompt.id === PENDING_ID;
+  // null while the row is read, the field's text while it is edited. Per row
+  // rather than one for the page, so opening a second editor never throws
+  // away what is typed in the first.
+  const [draft, setDraft] = useState<string | null>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const editRef = useRef<HTMLButtonElement>(null);
   // Without this every row's icon buttons announce identically, leaving a
   // screen-reader user no way to tell which prompt they are about to act on.
   const preview =
     prompt.text.length > 40 ? `${prompt.text.slice(0, 40)}…` : prompt.text;
+
+  // Focus moves by hand at both ends of an edit, and each end flushes first:
+  // what it focuses only exists once the row has re-rendered.
+  //
+  // Opening lands in the field with the caret at the end — not everything
+  // selected, as a rename does, where one stray key replaces the whole prompt.
+  // Once, here, rather than in onFocus: coming back from another app refocuses
+  // the field, and that must not throw the caret out of the middle of a
+  // rewrite. Inside the tap itself, too, which is what gets a phone to raise
+  // its keyboard.
+  function open(text: string) {
+    flushSync(() => setDraft(text));
+    const field = fieldRef.current;
+    if (!field) return;
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+  }
+
+  // Back to the Edit button, so the keyboard carries on from this row instead
+  // of from the top of the page.
+  function close() {
+    flushSync(() => setDraft(null));
+    editRef.current?.focus();
+  }
+
+  if (draft !== null) {
+    const next = draft.trim();
+
+    const save = () => {
+      // Same rule as the composer: an empty field saves nothing. Deleting is
+      // the bin's job, and that one comes with an undo.
+      if (!next) return;
+      // Unchanged is just done — no write, so no activity on the project.
+      if (next !== prompt.text)
+        onEdit(next, () =>
+          // A failed save reopens the row on this text. Focus follows only
+          // from this row's Edit button, which the field is about to replace;
+          // anywhere else, the user has moved on and keeps their place — and
+          // an editor they already reopened keeps what they typed into it.
+          document.activeElement === editRef.current
+            ? open(next)
+            : setDraft((current) => current ?? next),
+        );
+      close();
+    };
+
+    // Nothing commits on blur, unlike a rename: a prompt can run to pages, and
+    // a tap elsewhere halfway through rewriting one is not a decision to save.
+    return (
+      <li id={prompt.id}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <InputGroup>
+            <InputGroupTextarea
+              ref={fieldRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Not mid-IME: there Escape backs out of the candidate.
+                if (e.key === "Escape" && !e.nativeEvent.isComposing) close();
+                else if (isSend(e)) {
+                  e.preventDefault();
+                  save();
+                }
+              }}
+              aria-label="Edit prompt"
+              enterKeyHint="done"
+              maxLength={10000}
+              // Taller than the composer's cap: this is the prompt being worked
+              // on, not a field that must leave room for the queue above it.
+              className="max-h-[50dvh] overflow-y-auto"
+            />
+            <InputGroupAddon align="block-end" className="justify-end">
+              <Button variant="ghost" size="sm" onClick={close}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={!next}>
+                Save
+              </Button>
+            </InputGroupAddon>
+          </InputGroup>
+        </form>
+      </li>
+    );
+  }
 
   return (
     <li
@@ -507,6 +626,16 @@ function PromptRow({
           aria-label={`Copy prompt: ${preview}`}
         >
           <HugeiconsIcon icon={Copy01Icon} />
+        </Button>
+        <Button
+          ref={editRef}
+          variant="ghost"
+          size="icon"
+          onClick={() => open(prompt.text)}
+          disabled={isPending}
+          aria-label={`Edit prompt: ${preview}`}
+        >
+          <HugeiconsIcon icon={PencilEdit02Icon} />
         </Button>
         <Button
           variant="ghost"

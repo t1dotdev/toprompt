@@ -239,6 +239,15 @@ function ProjectView() {
     seen.current = { id: project.id, count: prompts.length };
   }, [project.id, prompts.length]);
 
+  // Entering a project lands in the composer, as a chat lands in its message
+  // field. Keyed on the project rather than left to autoFocus, because moving
+  // from one project to the next keeps this component mounted. Mouse and
+  // trackpad only: on a touch screen it would raise the keyboard over the
+  // queue you may have come to copy from, and there the field is a thumb away.
+  useEffect(() => {
+    if (matchMedia("(pointer: fine)").matches) textareaRef.current?.focus();
+  }, [project.id]);
+
   function create() {
     if (!trimmed || saving) return;
     setText("");

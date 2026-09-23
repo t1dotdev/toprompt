@@ -41,7 +41,11 @@ export function useMutate() {
     setInFlight((n) => n + 1)
     void (async () => {
       try {
-        options.onSuccess?.(await request)
+        // Awaited on its own line: as the argument of `onSuccess?.()` the await
+        // was skipped whenever a caller passed no onSuccess, so a failure never
+        // reached the catch and the refetch raced the write.
+        const result = await request
+        options.onSuccess?.(result)
       } catch {
         toastManager.add({ title: options.error, type: 'error' })
         options.onError?.()
